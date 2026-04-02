@@ -1,0 +1,2031 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ECG Analyzer</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0e1a'/%3E%3Cpolyline points='0,16 3,16 4,13 5,19 6,13 7,19 8,13 9,16 11,16 12,11 13,21 14,16 16,16 17,13 18,19 19,13 20,19 21,13 22,16 24,16 25,11 26,21 27,16 32,16' fill='none' stroke='%2300d4aa' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root {
+  --bg:#0a0a0a;--bg2:#111111;--bg3:#161616;--surface:#1a1a1a;--surface2:#222222;
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.14);--accent:#00d4aa;--accent2:#00b894;
+  --accent3:#0984e3;--red:#ff4757;--yellow:#ffd32a;--purple:#a29bfe;
+  --text:rgba(255,255,255,0.92);--text2:rgba(255,255,255,0.5);--text3:rgba(255,255,255,0.28);
+  --shadow:0 4px 24px rgba(0,0,0,0.5);--radius:12px;
+  --mono:'Inter',sans-serif;--sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+[data-theme="light"]{
+  --bg:#f5f5f5;--bg2:#ebebeb;--bg3:#e0e0e0;--surface:#fff;--surface2:#f8f8f8;
+  --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);--accent:#00a884;--accent2:#008f6e;
+  --text:rgba(0,0,0,0.88);--text2:rgba(0,0,0,0.5);--text3:rgba(0,0,0,0.3);--shadow:0 4px 24px rgba(0,0,0,0.1);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;-webkit-font-smoothing:antialiased;}
+
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:58px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100;}
+.logo{display:flex;flex-direction:column;gap:1px;}
+.logo-row{display:flex;align-items:center;gap:10px;}
+.logo-icon{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;}
+.logo-icon svg{width:20px;height:20px;}
+.logo-text{font-size:16px;font-weight:600;letter-spacing:-0.3px;color:var(--text);}
+.logo-text span{color:var(--accent);}
+.logo-sub{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.5px;padding-left:42px;}
+.header-actions{display:flex;align-items:center;gap:8px;}
+
+/* MODE SELECTOR */
+.mode-selector{display:flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:3px;}
+.mode-btn{padding:5px 12px;border-radius:7px;border:none;background:transparent;color:var(--text2);font-family:var(--mono);font-size:10px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.mode-btn.active{background:var(--accent);color:#000;font-weight:700;}
+
+.btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,212,170,.08);}
+.btn.primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700;}
+.btn.primary:hover{background:var(--accent2);border-color:var(--accent2);}
+.btn.danger{border-color:var(--red);color:var(--red);}
+.btn.danger:hover{background:rgba(255,71,87,.1);}
+.badge{background:rgba(0,212,170,.15);color:var(--accent);border-radius:4px;padding:1px 6px;font-family:var(--mono);font-size:10px;font-weight:700;}
+
+/* MAIN LAYOUT */
+.main{flex:1;display:grid;grid-template-columns:1fr 280px;grid-template-rows:1fr 240px;overflow:hidden;}
+.ecg-panel{grid-row:1;grid-column:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border);border-bottom:1px solid var(--border);}
+.ecg-panel.hidden{display:none;}
+.right-panel{grid-row:1/3;grid-column:2;display:flex;flex-direction:column;border-left:1px solid var(--border);overflow:hidden;}
+.right-panel.full-col{grid-row:1/3;}
+.bottom-panel{grid-row:2;grid-column:1;overflow:hidden;border-top:1px solid var(--border);}
+/* In real-ECG mode: step panel expands to fill only column 1 (rows 1+2), never touching column 2 */
+.bottom-panel.full-width{grid-column:1!important;grid-row:1/3!important;border-top:none;}
+/* Legacy: keep .full-width compatible but scoped to col 1 only */
+
+/* TOOLBAR */
+.toolbar{display:flex;align-items:center;gap:4px;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;}
+.tool-group{display:flex;align-items:center;gap:2px;padding-right:10px;border-right:1px solid var(--border);margin-right:6px;}
+.tool-group:last-child{border-right:none;}
+.tool-btn{width:32px;height:32px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;font-size:14px;}
+.tool-btn:hover{background:var(--surface);border-color:var(--border);color:var(--text);}
+.tool-btn.active{background:rgba(0,212,170,.12);border-color:var(--accent);color:var(--accent);}
+.tool-label{font-family:var(--mono);font-size:10px;color:var(--text3);padding:0 4px;}
+input[type=range]{width:80px;accent-color:var(--accent);cursor:pointer;}
+input[type=color]{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);cursor:pointer;background:none;padding:2px;}
+
+/* ECG CANVAS */
+.ecg-container{flex:1;position:relative;overflow:hidden;background:var(--bg);touch-action:none;}
+#ecgCanvas,#drawCanvas,#overlayCanvas{position:absolute;top:0;left:0;}
+#ecgCanvas{z-index:1;}
+#drawCanvas{z-index:2;pointer-events:none;}
+#overlayCanvas{z-index:3;}
+.upload-zone{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:10;}
+.upload-zone.hidden{display:none;}
+.upload-card{background:var(--surface);border:2px dashed var(--border2);border-radius:20px;padding:48px 64px;text-align:center;cursor:pointer;transition:all .2s;max-width:420px;}
+.upload-card:hover{border-color:var(--accent);background:rgba(0,212,170,.05);}
+.upload-card.drag-over{border-color:var(--accent);background:rgba(0,212,170,.1);transform:scale(1.02);}
+.upload-icon{font-size:48px;margin-bottom:12px;}
+.upload-title{font-size:20px;font-weight:700;margin-bottom:8px;}
+.upload-sub{font-size:13px;color:var(--text2);font-family:var(--mono);}
+#fileInput{display:none;}
+
+/* RULER */
+.ruler-info{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:8px 16px;display:flex;gap:20px;z-index:20;font-family:var(--mono);font-size:12px;box-shadow:var(--shadow);opacity:0;transition:opacity .2s;pointer-events:none;}
+.ruler-info.visible{opacity:1;}
+.ruler-val{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.ruler-val-num{font-size:18px;font-weight:700;color:var(--accent);}
+.ruler-val-unit{font-size:10px;color:var(--text2);text-transform:uppercase;}
+
+/* RIGHT PANEL */
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;}
+.panel-title{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);}
+
+/* COMPASS */
+.compass-container{padding:12px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0;border-bottom:1px solid var(--border);}
+#compassCanvas{border-radius:50%;background:var(--bg3);}
+.compass-hint{font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;}
+.axis-display{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--yellow);min-height:18px;text-align:center;}
+
+/* LEAD PANEL */
+.leads-container{flex:1;overflow-y:auto;padding:12px;}
+.leads-title{font-family:var(--mono);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;font-weight:700;}
+.lead-row{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);margin-bottom:6px;transition:border-color .15s;}
+.lead-row.has-selection{border-color:var(--border2);}
+.lead-name{font-family:var(--mono);font-size:12px;font-weight:700;width:40px;}
+.lead-toggles{display:flex;gap:4px;}
+.lead-toggle{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text3);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .15s;}
+.lead-toggle:hover{border-color:var(--border2);color:var(--text2);}
+.lead-toggle.pos.active{background:rgba(0,212,170,.2);border-color:var(--accent);color:var(--accent);font-weight:700;}
+.lead-toggle.neg.active{background:rgba(255,71,87,.2);border-color:var(--red);color:var(--red);font-weight:700;}
+.leads-hint{font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.5;margin-top:8px;padding:8px;border-radius:6px;background:var(--bg3);}
+
+/* CALIBRATION */
+.calib-section{padding:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;flex-shrink:0;}
+.calib-title{color:var(--text2);margin-bottom:8px;font-weight:700;letter-spacing:.5px;}
+.calib-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.calib-row label{color:var(--text3);width:80px;}
+.calib-row input[type=number]{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-family:var(--mono);font-size:11px;}
+
+/* WIZARD */
+.wizard-container{height:100%;display:flex;flex-direction:column;overflow:hidden;}
+.wizard-progress{display:flex;padding:12px 16px 8px;gap:4px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.step-dot{flex:1;height:3px;border-radius:2px;background:var(--border);transition:background .3s;cursor:pointer;}
+.step-dot.done{background:var(--accent2);}
+.step-dot.active{background:var(--accent);}
+.wizard-body{flex:1;display:flex;overflow:hidden;min-height:0;}
+.wizard-step-content{flex:1;padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
+.step-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.3);border-radius:100px;padding:4px 12px;font-family:var(--mono);font-size:11px;color:var(--accent);width:fit-content;}
+.step-title{font-size:16px;font-weight:800;line-height:1.3;}
+.step-desc{font-size:12px;color:var(--text2);line-height:1.6;font-family:var(--mono);}
+.step-checklist{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.step-checklist li{display:flex;align-items:flex-start;gap:8px;font-size:12px;font-family:var(--mono);color:var(--text2);cursor:pointer;padding:6px 8px;border-radius:6px;transition:background .1s;user-select:none;}
+.step-checklist li:hover{background:var(--surface);}
+.check-box{width:16px;height:16px;border:1px solid var(--border2);border-radius:4px;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.step-checklist li.checked .check-box{background:var(--accent);border-color:var(--accent);}
+.step-note{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--mono);font-size:11px;resize:none;min-height:60px;transition:border-color .2s;}
+.step-note:focus{outline:none;border-color:var(--accent);}
+.wizard-footer{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg2);border-top:1px solid var(--border);flex-shrink:0;}
+.step-counter{font-family:var(--mono);font-size:11px;color:var(--text3);}
+.wizard-nav{display:flex;gap:8px;}
+.tip-box{background:rgba(0,132,227,.1);border:1px solid rgba(0,132,227,.3);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--accent3);font-family:var(--mono);line-height:1.5;}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:var(--border2);}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:12px 18px;font-family:var(--mono);font-size:12px;color:var(--text);box-shadow:var(--shadow);z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.success{border-color:var(--accent);color:var(--accent);}
+.toast.error{border-color:var(--red);color:var(--red);}
+
+/* COLLAPSE BUTTON */
+.collapse-btn{width:22px;height:22px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;font-family:var(--mono);}
+.collapse-btn:hover{border-color:var(--accent);color:var(--accent);}
+.collapsible{overflow:hidden;transition:max-height .3s ease, opacity .3s ease;}
+.collapsible.collapsed{max-height:0!important;opacity:0;}
+.collapsible.expanded{opacity:1;}
+
+/* HR OVERLAY */
+.hr-overlay{position:absolute;top:60px;left:60px;z-index:25;cursor:grab;user-select:none;touch-action:none;}
+.hr-overlay:active{cursor:grabbing;}
+.hr-overlay-inner{background:rgba(10,14,26,0.82);border:1px solid var(--accent);border-radius:10px;padding:8px 10px;backdrop-filter:blur(4px);}
+.hr-overlay-title{font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;}
+.hr-overlay-bars{display:flex;align-items:flex-end;gap:0;}
+.hr-bar{display:flex;flex-direction:column;align-items:center;border-left:2px solid var(--accent);padding-left:4px;padding-right:4px;}
+.hr-bar:first-child{border-left:none;padding-left:0;}
+.hr-bar-label{font-family:var(--mono);font-size:9px;color:var(--accent);font-weight:700;}
+.hr-bar-sub{font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:1px;}
+.hr-overlay-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0;line-height:1;}
+.hr-overlay-close:hover{color:var(--red);}
+
+/* FLOATING CALCULATOR */
+.float-calc{position:absolute;z-index:50;background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:16px;box-shadow:var(--shadow);min-width:220px;display:none;}
+.float-calc.open{display:block;}
+.float-calc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.float-calc-title{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.5px;}
+.float-calc-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;line-height:1;}
+.float-calc-close:hover{color:var(--red);}
+.float-calc-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-family:var(--mono);font-size:11px;color:var(--text2);}
+.float-calc-row label{width:70px;flex-shrink:0;}
+.float-calc-row input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-family:var(--mono);font-size:11px;}
+.float-calc-result{background:var(--bg3);border-radius:8px;padding:10px;text-align:center;margin-top:8px;}
+.float-calc-result-num{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent);}
+.float-calc-result-label{font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:2px;}
+.float-calc-note{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:8px;line-height:1.5;}
+
+/* TOOLTIP */
+.tooltip-wrap{position:relative;display:inline-flex;align-items:center;}
+.tooltip-icon{width:16px;height:16px;border-radius:50%;background:rgba(0,212,170,.15);border:1px solid rgba(0,212,170,.4);color:var(--accent);font-size:9px;font-weight:700;cursor:help;display:inline-flex;align-items:center;justify-content:center;font-family:var(--mono);flex-shrink:0;margin-left:4px;}
+.tooltip-icon.info{background:rgba(9,132,227,.15);border-color:rgba(9,132,227,.4);color:var(--accent3);}
+.tooltip-popup{position:absolute;left:20px;top:-4px;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;min-width:220px;max-width:280px;z-index:200;box-shadow:var(--shadow);display:none;pointer-events:none;}
+.tooltip-wrap:hover .tooltip-popup{display:block;}
+.tooltip-popup b{color:var(--accent);}
+
+/* STEP EXTRAS */
+.step-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:12px;transition:border-color .2s;margin-top:4px;}
+.step-input:focus{outline:none;border-color:var(--accent);}
+.step-select-group{margin-top:6px;}
+.step-select-trigger{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-family:var(--mono);font-size:11px;color:var(--text2);transition:border-color .15s;}
+.step-select-trigger:hover{border-color:var(--border2);}
+.step-select-trigger.open{border-color:var(--accent);}
+.step-select-options{display:none;flex-direction:column;gap:4px;margin-top:4px;padding:6px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);}
+.step-select-options.open{display:flex;}
+.step-select-option{padding:6px 10px;border-radius:6px;font-family:var(--mono);font-size:11px;color:var(--text2);cursor:pointer;transition:all .1s;display:flex;align-items:center;gap:6px;}
+.step-select-option:hover{background:var(--surface);color:var(--text);}
+.step-select-option.selected{background:rgba(0,212,170,.15);color:var(--accent);font-weight:700;}
+.step-select-option .opt-dot{width:8px;height:8px;border-radius:50%;background:var(--border2);flex-shrink:0;}
+.step-select-option.selected .opt-dot{background:var(--accent);}
+.step-label-row{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--text2);margin-top:8px;margin-bottom:4px;font-weight:700;}
+.calc-icon-btn{width:20px;height:20px;border-radius:5px;background:rgba(0,212,170,.2);border:1px solid rgba(0,212,170,.4);color:var(--accent);cursor:pointer;font-size:11px;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;transition:all .15s;}
+.calc-icon-btn:hover{background:rgba(0,212,170,.35);}
+.selected-tag{display:inline-block;background:rgba(0,212,170,.15);border:1px solid rgba(0,212,170,.4);border-radius:6px;padding:2px 8px;font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:4px;}
+
+/* FULLSCREEN MODE */
+.ecg-fullscreen{position:fixed!important;inset:0!important;z-index:1000!important;display:flex!important;flex-direction:column!important;background:var(--bg)!important;border:none!important;}
+.ecg-fullscreen .ecg-container{flex:1!important;}
+.fullscreen-exit-btn{position:absolute;top:8px;right:8px;z-index:1010;width:34px;height:34px;border-radius:8px;border:1px solid var(--border2);background:rgba(10,14,26,.85);color:var(--text);cursor:pointer;font-size:16px;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.fullscreen-exit-btn.visible{display:flex;}
+.fullscreen-exit-btn:hover{border-color:var(--red);color:var(--red);}
+.ecg-fullscreen-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;margin-left:auto;}
+.ecg-fullscreen-btn:hover{border-color:var(--accent);color:var(--accent);}
+/* Fullscreen button anchored to top-right of ECG container */
+.ecg-container-fullscreen-btn{position:absolute;top:8px;right:48px;z-index:20;width:30px;height:30px;border-radius:7px;border:1px solid var(--border2);background:rgba(10,14,26,0.72);color:var(--text2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:all .15s;}
+.ecg-container-fullscreen-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(10,14,26,0.9);}
+
+/* COMPASS FULLSCREEN OVERLAY */
+.compass-fs-overlay{position:fixed;inset:0;z-index:2000;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;transition:opacity .25s;}
+.compass-fs-overlay.open{display:flex;}
+.compass-fs-close{position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:9px;border:1px solid var(--border2);background:rgba(10,14,26,.85);color:var(--text);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:all .15s;z-index:10;}
+.compass-fs-close:hover{border-color:var(--red);color:var(--red);}
+.compass-fs-inner{display:flex;align-items:center;justify-content:center;gap:40px;width:100%;max-width:960px;padding:20px;}
+.compass-fs-left{display:flex;flex-direction:column;align-items:center;gap:12px;flex-shrink:0;}
+#compassFSCanvas{border-radius:50%;background:var(--bg3);}
+.compass-fs-axis{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--yellow);text-align:center;min-height:24px;}
+.compass-fs-hint{font-family:var(--mono);font-size:11px;color:var(--text3);text-align:center;}
+.compass-fs-right{display:flex;flex-direction:column;gap:8px;min-width:200px;max-width:260px;}
+.compass-fs-leads-title{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:4px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.compass-fs-leads-hint{font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.5;margin-top:6px;padding:8px;border-radius:6px;background:var(--bg3);}
+/* FS lead rows use same .lead-row styles, just ensure they fit */
+.compass-fs-right .lead-row{background:var(--surface);border:1px solid var(--border);margin-bottom:5px;}
+@media(max-width:700px){
+  .compass-fs-inner{flex-direction:column;gap:20px;padding:60px 16px 20px;}
+  .compass-fs-right{max-width:100%;width:100%;}
+}
+
+@media (max-width: 900px){
+  .main{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;}
+  .right-panel{grid-row:3;grid-column:1;border-left:none;border-top:1px solid var(--border);max-height:300px;}
+  .ecg-panel{grid-row:1;grid-column:1;border-right:none;min-height:40vh;}
+  .bottom-panel{grid-row:2;grid-column:1;}
+  /* In real mode on mobile: step panel fills rows 1+2, right panel stays in row 3 */
+  .bottom-panel.full-width{grid-column:1!important;grid-row:1/3!important;}
+  header{flex-wrap:wrap;height:auto;padding:8px 12px;gap:8px;}
+  .header-actions{flex-wrap:wrap;gap:4px;}
+  .mode-selector{order:-1;}
+  .compass-container canvas{width:160px!important;height:160px!important;}
+}
+@media (max-width:600px){
+  .toolbar{gap:2px;padding:4px 8px;}
+  .tool-btn{width:28px;height:28px;font-size:12px;}
+  .btn{padding:4px 8px;font-size:10px;}
+  .logo-text{font-size:13px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-row">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5">
+          <polyline points="2,12 5,12 7,4 9,20 11,10 13,14 15,12 22,12"/>
+        </svg>
+      </div>
+      <div class="logo-text">ECG<span>Analyzer</span></div>
+      <span class="badge">v2.0</span>
+    </div>
+    <div class="logo-sub">by Flávio Laranjeira</div>
+  </div>
+  <div class="header-actions">
+    <div class="mode-selector">
+      <button class="mode-btn active" id="modeDigital">💻 ECG Digital</button>
+      <button class="mode-btn" id="modeReal">📄 ECG Físico</button>
+    </div>
+    <button class="btn" id="themeBtn">🌙 Tema</button>
+    <button class="btn" id="saveBtn">💾 Salvar</button>
+    <button class="btn primary" id="exportBtn">📄 Laudo</button>
+    <button class="btn danger" id="resetBtn">↺ Reset</button>
+  </div>
+</header>
+
+<div class="main" id="mainGrid">
+  <!-- ECG PANEL -->
+  <div class="ecg-panel" id="ecgPanel">
+    <div class="toolbar">
+      <div class="tool-group">
+        <span class="tool-label">FERRAMENTA</span>
+        <button class="tool-btn" id="toolPan" title="Mover">✋</button>
+        <button class="tool-btn active" id="toolDraw" title="Caneta">✏️</button>
+        <button class="tool-btn" id="toolErase" title="Borracha">🧹</button>
+        <button class="tool-btn" id="toolLine" title="Linha">╱</button>
+        <button class="tool-btn" id="toolArrow" title="Seta">➤</button>
+        <button class="tool-btn" id="toolRuler" title="Régua">📏</button>
+      </div>
+      <div class="tool-group">
+        <span class="tool-label">COR</span>
+        <input type="color" id="drawColor" value="#ff4757">
+      </div>
+      <div class="tool-group">
+        <span class="tool-label">ESP.</span>
+        <input type="range" id="drawSize" min="1" max="20" value="2">
+        <span id="drawSizeVal" style="font-family:var(--mono);font-size:10px;color:var(--text3);width:20px">2</span>
+      </div>
+      <div class="tool-group">
+        <span class="tool-label">ZOOM</span>
+        <button class="tool-btn" id="zoomOut">−</button>
+        <span id="zoomLabel" style="font-family:var(--mono);font-size:10px;color:var(--text2);min-width:36px;text-align:center">100%</span>
+        <button class="tool-btn" id="zoomIn">+</button>
+        <button class="tool-btn" id="zoomFit" title="Ajustar">⊡</button>
+      </div>
+      <div class="tool-group">
+        <span class="tool-label">BRILHO</span>
+        <input type="range" id="brightness" min="50" max="200" value="100">
+      </div>
+      <div class="tool-group">
+        <span class="tool-label">CONTRASTE</span>
+        <input type="range" id="contrastSlider" min="50" max="300" value="100">
+      </div>
+      <div class="tool-group">
+        <button class="btn" id="undoBtn" style="font-size:11px" title="Desfazer">↩ Desfazer</button>
+        <button class="btn" id="redoBtn" style="font-size:11px" title="Refazer">↪ Refazer</button>
+        <button class="btn" id="clearDrawBtn" style="font-size:11px">🗑</button>
+      </div>
+      <div class="tool-group">
+        <button class="tool-btn" id="toolHRScale" title="Escala FC — arraste sobre intervalo RR">📊</button>
+      </div>
+    </div>
+    <div class="ecg-container" id="ecgContainer">
+      <button class="fullscreen-exit-btn" id="fullscreenExitBtn" title="Sair da tela cheia">✕</button>
+      <button class="ecg-container-fullscreen-btn" id="fullscreenBtn" title="Tela cheia">⛶</button>
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-card" id="uploadCard">
+          <div class="upload-icon">🫀</div>
+          <div class="upload-title">Carregar ECG</div>
+          <div class="upload-sub">PNG · JPG · PDF<br>Clique ou arraste aqui</div>
+        </div>
+        <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.pdf">
+      </div>
+      <canvas id="ecgCanvas"></canvas>
+      <canvas id="drawCanvas"></canvas>
+      <canvas id="overlayCanvas"></canvas>
+
+      <!-- HR Scale Overlay (canvas-drawn, controlled by hrScaleStart/End in state) -->
+
+      <!-- HR Calculator (Floating) -->
+      <div class="float-calc" id="hrCalc" style="top:60px;right:16px;">
+        <div class="float-calc-header">
+          <span class="float-calc-title">🧮 CALC FC — 1500/RR</span>
+          <button class="float-calc-close" id="hrCalcClose">✕</button>
+        </div>
+        <div class="float-calc-row">
+          <label>RR (mm):</label>
+          <input type="number" id="hrCalcRR" placeholder="ex: 20" min="1" step="0.1">
+        </div>
+        <div class="float-calc-result">
+          <div class="float-calc-result-num" id="hrCalcResult">—</div>
+          <div class="float-calc-result-label">bpm</div>
+        </div>
+        <div class="float-calc-note">FC = 1500 ÷ RR(mm)<br>Válido para papel a 25mm/s</div>
+      </div>
+
+      <!-- QTc Calculator (Floating) -->
+      <div class="float-calc" id="qtcCalc" style="top:60px;right:16px;">
+        <div class="float-calc-header">
+          <span class="float-calc-title">🧮 CALC QTc (Bazett)</span>
+          <button class="float-calc-close" id="qtcCalcClose">✕</button>
+        </div>
+        <div class="float-calc-row">
+          <label>QT (ms):</label>
+          <input type="number" id="qtcCalcQT" placeholder="ex: 380" min="1">
+        </div>
+        <div class="float-calc-row">
+          <label>RR (ms):</label>
+          <input type="number" id="qtcCalcRR" placeholder="ex: 800" min="1">
+        </div>
+        <div class="float-calc-result">
+          <div class="float-calc-result-num" id="qtcCalcResult">—</div>
+          <div class="float-calc-result-label">ms (QTc)</div>
+        </div>
+        <div class="float-calc-note" id="qtcCalcNote">QTc = QT ÷ √(RR/1000)<br>Normal: &lt;440ms ♂ / &lt;460ms ♀<br>Patológico: QTc &gt;480ms</div>
+      </div>
+    </div>
+    <div class="ruler-info" id="rulerInfo">
+      <div class="ruler-val"><div class="ruler-val-num" id="rulerMm">0.0</div><div class="ruler-val-unit">mm</div></div>
+      <div class="ruler-val"><div class="ruler-val-num" id="rulerMs">0</div><div class="ruler-val-unit">ms</div></div>
+      <div class="ruler-val"><div class="ruler-val-num" id="rulerSec">0.000</div><div class="ruler-val-unit">s</div></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel" id="rightPanel">
+    <div class="panel-header">
+      <span class="panel-title">Eixo &amp; Derivações</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="badge" id="axisLabel">—</span>
+        <button class="tool-btn" id="compassFullscreenBtn" title="Bússola em tela cheia" style="width:26px;height:26px;font-size:13px;">⛶</button>
+        <button class="collapse-btn" id="compassCollapseBtn" title="Recolher">−</button>
+      </div>
+    </div>
+    <div class="collapsible expanded" id="compassCollapsible" style="max-height:600px;overflow-y:auto;">
+      <div class="compass-container">
+        <canvas id="compassCanvas" width="220" height="220"></canvas>
+        <div class="axis-display" id="axisDisplay"></div>
+        <div class="compass-hint">Clique no compasso para marcar o eixo</div>
+      </div>
+      <div style="padding:8px 16px 4px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);border-top:1px solid var(--border);">Derivações Frontais</div>
+      <div class="leads-container" id="leadsContainer"></div>
+    </div>
+    <div class="calib-section" id="calibSection">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="calib-title" style="margin-bottom:0;">⚖️ CALIBRAÇÃO</div>
+        <button class="collapse-btn" id="calibCollapseBtn" title="Recolher">−</button>
+      </div>
+      <div class="collapsible expanded" id="calibCollapsible" style="max-height:120px;">
+        <div class="calib-row"><label>px/mm:</label><input type="number" id="pxPerMm" value="4.0" step="0.1" min="0.5" max="20"></div>
+        <div class="calib-row"><label>mm/s ECG:</label><input type="number" id="mmPerSec" value="25" step="1" min="10" max="50"></div>
+        <button class="btn" style="width:100%;justify-content:center;margin-top:4px" id="calibRulerBtn">📏 Calibrar com Régua</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM PANEL -->
+  <div class="bottom-panel" id="bottomPanel">
+    <div class="wizard-container">
+      <div class="wizard-progress" id="wizardProgress"></div>
+      <div class="wizard-body">
+        <div class="wizard-step-content" id="stepContent"></div>
+      </div>
+      <div class="wizard-footer">
+        <span class="step-counter" id="stepCounter">Passo 1 de 9</span>
+        <div class="wizard-nav">
+          <button class="btn" id="prevStep">← Voltar</button>
+          <button class="btn primary" id="nextStep">Próximo →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- COMPASS FULLSCREEN OVERLAY -->
+<div class="compass-fs-overlay" id="compassFSOverlay">
+  <button class="compass-fs-close" id="compassFSClose">✕</button>
+  <div class="compass-fs-inner">
+    <div class="compass-fs-left">
+      <canvas id="compassFSCanvas"></canvas>
+      <div class="compass-fs-axis" id="compassFSAxis"></div>
+      <div class="compass-fs-hint">Clique na bússola para marcar o eixo</div>
+    </div>
+    <div class="compass-fs-right">
+      <div class="compass-fs-leads-title">Derivações Frontais</div>
+      <div id="compassFSLeads"></div>
+      <div class="compass-fs-leads-hint">💡 A região <b style="color:#00ff99">verde brilhante</b> indica a interseção de todos os setores ativos.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+const pdfjsLib = window['pdfjs-dist/build/pdf'];
+if (pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const LEADS = [
+  { name:'DI',   angle:0   },
+  { name:'DII',  angle:60  },
+  { name:'DIII', angle:120 },
+  { name:'aVR',  angle:-150},
+  { name:'aVL',  angle:-30 },
+  { name:'aVF',  angle:90  },
+];
+
+const state = {
+  mode: 'digital', // 'digital' | 'real'
+  tool: 'draw',
+  color: '#ff4757',
+  size: 2,
+  zoom: 1, panX: 0, panY: 0,
+  brightness: 100, contrast: 100,
+  pxPerMm: 4.0, mmPerSec: 25,
+  hasImage: false, imageWidth: 0, imageHeight: 0, imageObj: null,
+  annotations: [], drawHistory: [],
+  currentStroke: null,
+  rulerStart: null, rulerEnd: null, isRulerDragging: false,
+  hrScaleStart: null, hrScaleEnd: null, isHRScaleDragging: false,
+  isPanning: false, panStart: {x:0,y:0},
+  compassAxis: null,
+  leadSelections: {}, // name -> 'pos'|'neg'|null
+  isDark: true,
+  currentStep: 0,
+  stepChecks: {},
+  notes: {},
+  patientInfo: '',
+  hrValue: '',
+  rhythmSelected: '',
+  rhythmOpen: false,
+  extrasysSelected: '',
+  extrasysOpen: false,
+  atrialEnlargement: '',
+  atrialOpen: false,
+  fascicularBlock: '',
+  fascicularOpen: false,
+  bundleBranch: '',
+  bundleBranchOpen: false,
+  ventHypertrophy: '',
+  ventHypertrophyOpen: false,
+  // undo/redo
+  undoStack: [],
+  redoStack: [],
+  isFullscreen: false,
+};
+LEADS.forEach(l => state.leadSelections[l.name] = null);
+
+// ═══════════════════════════════════════
+// DOM REFS
+// ═══════════════════════════════════════
+const ecgContainer = document.getElementById('ecgContainer');
+const ecgCanvas    = document.getElementById('ecgCanvas');
+const drawCanvas   = document.getElementById('drawCanvas');
+const overlayCanvas= document.getElementById('overlayCanvas');
+const ecgCtx  = ecgCanvas.getContext('2d');
+const drawCtx = drawCanvas.getContext('2d');
+const overlCtx= overlayCanvas.getContext('2d');
+const compassCanvas = document.getElementById('compassCanvas');
+const compassCtx    = compassCanvas.getContext('2d');
+const uploadZone = document.getElementById('uploadZone');
+const rulerInfo  = document.getElementById('rulerInfo');
+
+// ═══════════════════════════════════════
+// RESIZE
+// ═══════════════════════════════════════
+function resizeCanvases(){
+  const w=ecgContainer.clientWidth, h=ecgContainer.clientHeight;
+  [ecgCanvas,drawCanvas,overlayCanvas].forEach(c=>{
+    c.width=w; c.height=h;
+    c.style.width=w+'px'; c.style.height=h+'px';
+  });
+  renderECG(); renderDraw(); renderOverlay();
+}
+new ResizeObserver(resizeCanvases).observe(ecgContainer);
+
+// ═══════════════════════════════════════
+// RENDER ECG
+// ═══════════════════════════════════════
+function renderECG(){
+  const w=ecgCanvas.width, h=ecgCanvas.height;
+  ecgCtx.clearRect(0,0,w,h);
+  if(!state.hasImage){ drawGrid(ecgCtx,w,h); return; }
+  ecgCtx.save();
+  ecgCtx.translate(state.panX,state.panY);
+  ecgCtx.scale(state.zoom,state.zoom);
+  ecgCtx.filter=`brightness(${state.brightness}%) contrast(${state.contrast}%)`;
+  ecgCtx.drawImage(state.imageObj,0,0,state.imageWidth,state.imageHeight);
+  ecgCtx.restore();
+}
+
+function drawGrid(ctx,w,h){
+  ctx.fillStyle=state.isDark?'#0a0a0a':'#ffffff';
+  ctx.fillRect(0,0,w,h);
+  const lineColorThin=state.isDark?'rgba(255,255,255,.03)':'rgba(0,0,0,.06)';
+  const lineColorThick=state.isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.12)';
+  ctx.strokeStyle=lineColorThin; ctx.lineWidth=.5;
+  for(let x=0;x<w;x+=10){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let y=0;y<h;y+=10){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  ctx.strokeStyle=lineColorThick; ctx.lineWidth=1;
+  for(let x=0;x<w;x+=50){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let y=0;y<h;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+}
+
+// ═══════════════════════════════════════
+// RENDER DRAW LAYER
+// ═══════════════════════════════════════
+function renderDraw(){
+  const w=drawCanvas.width, h=drawCanvas.height;
+  drawCtx.clearRect(0,0,w,h);
+  drawCtx.save();
+  drawCtx.translate(state.panX,state.panY);
+  drawCtx.scale(state.zoom,state.zoom);
+  state.annotations.forEach(a=>paintAnnotation(drawCtx,a));
+  drawCtx.restore();
+}
+
+function paintAnnotation(ctx,ann){
+  ctx.save();
+  ctx.strokeStyle=ann.color; ctx.fillStyle=ann.color;
+  ctx.lineWidth=ann.size/state.zoom; ctx.lineCap='round'; ctx.lineJoin='round';
+  if(ann.type==='path'&&ann.points.length>1){
+    ctx.beginPath(); ctx.moveTo(ann.points[0].x,ann.points[0].y);
+    ann.points.slice(1).forEach(p=>ctx.lineTo(p.x,p.y)); ctx.stroke();
+  } else if(ann.type==='line'||ann.type==='arrow'){
+    ctx.beginPath(); ctx.moveTo(ann.x1,ann.y1); ctx.lineTo(ann.x2,ann.y2); ctx.stroke();
+    if(ann.type==='arrow') arrowHead(ctx,ann.x1,ann.y1,ann.x2,ann.y2,ann.size/state.zoom*4);
+  } else if(ann.type==='erase'){
+    ctx.globalCompositeOperation='destination-out';
+    ctx.lineWidth=ann.size/state.zoom*3;
+    ctx.beginPath(); ctx.moveTo(ann.points[0].x,ann.points[0].y);
+    ann.points.slice(1).forEach(p=>ctx.lineTo(p.x,p.y)); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function arrowHead(ctx,x1,y1,x2,y2,sz){
+  const a=Math.atan2(y2-y1,x2-x1), L=Math.max(10,sz*2);
+  ctx.beginPath();
+  ctx.moveTo(x2,y2); ctx.lineTo(x2-L*Math.cos(a-Math.PI/7),y2-L*Math.sin(a-Math.PI/7));
+  ctx.moveTo(x2,y2); ctx.lineTo(x2-L*Math.cos(a+Math.PI/7),y2-L*Math.sin(a+Math.PI/7));
+  ctx.stroke();
+}
+
+// ═══════════════════════════════════════
+// RENDER OVERLAY (ruler + live stroke)
+// ═══════════════════════════════════════
+function renderOverlay(){
+  const w=overlayCanvas.width, h=overlayCanvas.height;
+  overlCtx.clearRect(0,0,w,h);
+  if(state.currentStroke){
+    overlCtx.save(); overlCtx.translate(state.panX,state.panY); overlCtx.scale(state.zoom,state.zoom);
+    paintAnnotation(overlCtx,state.currentStroke); overlCtx.restore();
+  }
+  if(state.rulerStart&&state.rulerEnd){
+    const s=w2s(state.rulerStart), e=w2s(state.rulerEnd);
+    overlCtx.save(); overlCtx.strokeStyle='#ffd32a'; overlCtx.fillStyle='#ffd32a'; overlCtx.lineWidth=2;
+    overlCtx.setLineDash([6,4]);
+    overlCtx.beginPath(); overlCtx.moveTo(s.x,s.y); overlCtx.lineTo(e.x,e.y); overlCtx.stroke();
+    overlCtx.setLineDash([]);
+    [s,e].forEach(p=>{overlCtx.beginPath();overlCtx.arc(p.x,p.y,5,0,Math.PI*2);overlCtx.fill();});
+    overlCtx.restore();
+    updateRulerInfo();
+  } else if(!state.rulerStart) rulerInfo.classList.remove('visible');
+
+  // HR SCALE TOOL — drawn on overlayCanvas during drag and after
+  if(state.hrScaleStart&&state.hrScaleEnd){
+    drawHRScaleOverlay();
+  }
+}
+
+function drawHRScaleOverlay(){
+  const HR_VALS=[300,150,100,75,60,50,42];
+  // Bar spacing = 5 mm in world coords (1 large ECG square)
+  const barSpacingWorld = 5; // mm
+  const barSpacingPx = barSpacingWorld * state.pxPerMm; // world px
+
+  const s=w2s(state.hrScaleStart);
+  const e=w2s(state.hrScaleEnd);
+
+  // Use the horizontal distance of the drag to position the scale
+  const startX = Math.min(s.x, e.x);
+  const anchorY = s.y; // vertical anchor at drag start Y
+  const barH = 40; // bar height in screen px
+
+  overlCtx.save();
+  overlCtx.font = `bold 10px 'Space Mono', monospace`;
+  overlCtx.textAlign = 'center';
+
+  // Total bars = 8: 1 anchor bar (no label) + 7 labeled bars (300,150,100,75,60,50,42)
+  const TOTAL_BARS = HR_VALS.length + 1; // 8 bars
+  for(let i = 0; i < TOTAL_BARS; i++){
+    // Each bar is i * barSpacingPx * zoom from startX
+    const bx = startX + i * barSpacingPx * state.zoom;
+
+    // Stop drawing if beyond canvas
+    if(bx > overlayCanvas.width + 20) break;
+
+    // Vertical bar
+    overlCtx.strokeStyle = 'rgba(0,212,170,0.9)';
+    overlCtx.lineWidth = i===0 ? 2.5 : 1.5;
+    overlCtx.beginPath();
+    overlCtx.moveTo(bx, anchorY - barH/2);
+    overlCtx.lineTo(bx, anchorY + barH/2);
+    overlCtx.stroke();
+
+    // Horizontal connecting line between bars
+    if(i < TOTAL_BARS - 1){
+      const nextX = startX + (i+1) * barSpacingPx * state.zoom;
+      overlCtx.strokeStyle = 'rgba(0,212,170,0.3)';
+      overlCtx.lineWidth = 1;
+      overlCtx.beginPath();
+      overlCtx.moveTo(bx, anchorY);
+      overlCtx.lineTo(nextX, anchorY);
+      overlCtx.stroke();
+    }
+
+    // Label above bar: first bar (i=0) has NO label
+    if(i > 0){
+      const fc = HR_VALS[i - 1]; // index shift: bar 1 -> HR_VALS[0]=300, etc.
+      overlCtx.font = `bold 10px 'Space Mono', monospace`;
+      overlCtx.fillStyle = '#00d4aa';
+      overlCtx.textAlign = 'center';
+      overlCtx.fillText(fc, bx, anchorY - barH/2 - 6);
+
+      // "bpm" below bar
+      overlCtx.fillStyle = 'rgba(136,146,176,0.8)';
+      overlCtx.font = '8px monospace';
+      overlCtx.fillText('bpm', bx, anchorY + barH/2 + 12);
+    }
+  }
+
+  // Drag endpoint dot
+  overlCtx.fillStyle='#00d4aa';
+  overlCtx.beginPath(); overlCtx.arc(e.x, e.y, 4, 0, Math.PI*2); overlCtx.fill();
+
+  // Info label: show RR interval and computed HR at drag point
+  const dragPxWorld = Math.abs(state.hrScaleEnd.x - state.hrScaleStart.x);
+  if(dragPxWorld > 0){
+    const dragMm = dragPxWorld / state.pxPerMm;
+    const dragSec = dragMm / state.mmPerSec;
+    const computedHR = dragSec > 0 ? Math.round(60/dragSec) : 0;
+    const lx = (s.x+e.x)/2;
+    const ly = anchorY + barH/2 + 28;
+    overlCtx.fillStyle = 'rgba(10,14,26,0.85)';
+    overlCtx.beginPath();
+    const tw = 110, th = 20;
+    overlCtx.roundRect(lx-tw/2, ly-th/2, tw, th, 4);
+    overlCtx.fill();
+    overlCtx.fillStyle = '#ffd32a';
+    overlCtx.font = `bold 11px 'Space Mono', monospace`;
+    overlCtx.textAlign = 'center';
+    overlCtx.fillText(`RR ${dragMm.toFixed(1)}mm → ${computedHR} bpm`, lx, ly+4);
+  }
+
+  overlCtx.restore();
+}
+
+function w2s(p){return {x:p.x*state.zoom+state.panX, y:p.y*state.zoom+state.panY};}
+function s2w(sx,sy){return {x:(sx-state.panX)/state.zoom, y:(sy-state.panY)/state.zoom};}
+
+function updateRulerInfo(){
+  if(!state.rulerStart||!state.rulerEnd) return;
+  const dx=state.rulerEnd.x-state.rulerStart.x, dy=state.rulerEnd.y-state.rulerStart.y;
+  const px=Math.sqrt(dx*dx+dy*dy);
+  const mm=px/state.pxPerMm, sec=mm/state.mmPerSec;
+  document.getElementById('rulerMm').textContent=mm.toFixed(1);
+  document.getElementById('rulerMs').textContent=(sec*1000).toFixed(0);
+  document.getElementById('rulerSec').textContent=sec.toFixed(3);
+  rulerInfo.classList.add('visible');
+}
+
+// ═══════════════════════════════════════
+// COMPASS — angle convention:
+// 0° = right (DI), 90° = down (aVF)
+// Canvas angle = deg * π/180  (no -90 shift needed; we use standard math coords mapped to canvas)
+// ═══════════════════════════════════════
+function degToCanvas(deg){
+  // In canvas: x+ = right, y+ = down
+  // Standard ECG: 0°=right, 90°=down → same as canvas, just convert deg to rad
+  return deg * Math.PI / 180;
+}
+
+function drawCompass(targetCanvas){
+  const canvas = targetCanvas || compassCanvas;
+  const ctx = canvas === compassCanvas ? compassCtx : canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  const cx=W/2, cy=H/2;
+
+  // ── LAYOUT: reserve enough margin for outer label ring ──
+  // degLabelFontSize scales with canvas; outer label ring sits at R + outerGap.
+  // Margin must hold: lead label band (~14px) + tick (~10px) + deg label (~fontSize+4px)
+  const degLabelFontSize = Math.max(9, Math.round(W * 0.038));
+  const leadLabelBand = Math.max(12, Math.round(W * 0.055)); // inner label band width
+  const outerGap = leadLabelBand + 10 + degLabelFontSize + 6; // total margin needed
+  const margin = outerGap + 4; // a little extra breathing room
+  const R = W/2 - margin;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Background circle — fills up to the outer label ring boundary
+  ctx.fillStyle=state.isDark?'#161616':'#f0f0f0';
+  ctx.beginPath(); ctx.arc(cx,cy,R+10,0,Math.PI*2); ctx.fill();
+
+  // ── SECTOR INTERSECTION RENDERING ──
+  const activeLeads = LEADS.filter(l=>state.leadSelections[l.name]!==null);
+  if(activeLeads.length>0){
+    renderSectorOverlaps(ctx,cx,cy,R,activeLeads,canvas.width,canvas.height);
+  }
+
+  // Grid circles
+  ctx.strokeStyle=state.isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.1)'; ctx.lineWidth=.8;
+  [.33,.66,1].forEach(f=>{ctx.beginPath();ctx.arc(cx,cy,R*f,0,Math.PI*2);ctx.stroke();});
+
+  // ── DEGREE MARKINGS — all 12 × 30° steps ──
+  // All degree labels (every 30°) displayed in outer ring, CLEARLY outside the circle.
+  // Lead names stay in inner ring at R + leadLabelBand/2 (no change to lead logic below).
+  const allDegLabels = {
+    '0':'0°', '30':'+30°', '60':'+60°', '90':'+90°',
+    '120':'+120°', '150':'+150°', '-180':'±180°',
+    '-150':'-150°', '-120':'-120°', '-90':'-90°',
+    '-60':'-60°', '-30':'-30°'
+  };
+  const degStep = 30;
+
+  for(let d=-180; d<180; d+=degStep){
+    const rad = degToCanvas(d);
+    const isCardinal = (d % 90 === 0);
+    const tickStart = R + leadLabelBand + 2;      // starts just outside lead label band
+    const tickLen   = isCardinal ? 8 : 5;
+    const tx1 = cx + Math.cos(rad)*tickStart;
+    const ty1 = cy + Math.sin(rad)*tickStart;
+    const tx2 = cx + Math.cos(rad)*(tickStart+tickLen);
+    const ty2 = cy + Math.sin(rad)*(tickStart+tickLen);
+
+    ctx.strokeStyle = isCardinal
+      ? (state.isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.4)')
+      : (state.isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.2)');
+    ctx.lineWidth   = isCardinal ? 1.2 : 0.7;
+    ctx.beginPath(); ctx.moveTo(tx1,ty1); ctx.lineTo(tx2,ty2); ctx.stroke();
+
+    // Degree label: outer ring, safely inside canvas
+    const lbR = tickStart + tickLen + degLabelFontSize * 0.6 + 3;
+    const lx = cx + Math.cos(rad)*lbR;
+    const ly = cy + Math.sin(rad)*lbR;
+
+    // Glow/shadow for contrast
+    ctx.save();
+    ctx.shadowColor = state.isDark ? 'rgba(0, 212, 170, 0.35)' : 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur  = isCardinal ? 6 : 3;
+    ctx.fillStyle   = state.isDark
+      ? (isCardinal ? 'rgba(200,220,255,0.92)' : 'rgba(170,190,230,0.78)')
+      : (isCardinal ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.55)');
+    ctx.font        = `${isCardinal ? 'bold ' : ''}${degLabelFontSize}px 'Inter', sans-serif`;
+    ctx.textAlign   = 'center';
+    ctx.textBaseline= 'middle';
+    ctx.fillText(allDegLabels[String(d)], lx, ly);
+    ctx.restore();
+  }
+
+  // Lead axes
+  LEADS.forEach(l=>{
+    const rad=degToCanvas(l.angle);
+    const ex=cx+Math.cos(rad)*R, ey=cy+Math.sin(rad)*R;
+    const ox=cx-Math.cos(rad)*R*.35, oy=cy-Math.sin(rad)*R*.35;
+    const sel=state.leadSelections[l.name];
+    const col=sel==='pos'?'#00d4aa':sel==='neg'?'#ff4757':(state.isDark?'rgba(255,255,255,.35)':'rgba(0,0,0,.3)');
+    ctx.strokeStyle=col; ctx.lineWidth=sel?2:1.2;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(ex,ey); ctx.stroke();
+    ctx.setLineDash([4,4]); ctx.globalAlpha=.4;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(ox,oy); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    // Lead label: inner ring, just outside the circle perimeter — unchanged
+    const leadFontSize = Math.max(9, Math.round(R * 0.095));
+    const labelR = R + 10;
+    const lx=cx+Math.cos(rad)*labelR, ly=cy+Math.sin(rad)*labelR;
+    ctx.fillStyle=col;
+    ctx.font=`700 ${leadFontSize}px 'Inter'`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(l.name,lx,ly);
+  });
+
+  // Center dot
+  ctx.fillStyle=state.isDark?'#fff':'#222'; ctx.beginPath(); ctx.arc(cx,cy,3,0,Math.PI*2); ctx.fill();
+
+  // Compass axis marker (user-clicked)
+  if(state.compassAxis!==null){
+    const rad=degToCanvas(state.compassAxis);
+    ctx.strokeStyle='#ffd32a'; ctx.lineWidth=2.5;
+    const ex=cx+Math.cos(rad)*R*.82, ey=cy+Math.sin(rad)*R*.82;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(ex,ey); ctx.stroke();
+    const a2=Math.atan2(ey-cy,ex-cx), L=10;
+    ctx.beginPath();
+    ctx.moveTo(ex,ey);
+    ctx.lineTo(ex-L*Math.cos(a2-.4),ey-L*Math.sin(a2-.4));
+    ctx.moveTo(ex,ey);
+    ctx.lineTo(ex-L*Math.cos(a2+.4),ey-L*Math.sin(a2+.4));
+    ctx.stroke();
+  }
+}
+
+// ═══════════════════════════════════════
+// SECTOR OVERLAP RENDERING (geometric)
+// Each lead sector = 180° half-plane
+// Intersection = region inside ALL sectors
+// ═══════════════════════════════════════
+function sectorCenter(lead){
+  // If positive: center at lead angle; if negative: center at lead angle + 180
+  const sel=state.leadSelections[lead.name];
+  let center=lead.angle;
+  if(sel==='neg') center=(lead.angle+180+360)%360;
+  return center;
+}
+
+function renderSectorOverlaps(ctx,cx,cy,R,activeLeads,W,H){
+  W = W || compassCanvas.width;
+  H = H || compassCanvas.height;
+  const N=activeLeads.length;
+
+  // 1. Draw each individual sector faintly
+  activeLeads.forEach(l=>{
+    const center=sectorCenter(l);
+    const startRad=degToCanvas(center-90);
+    const endRad=degToCanvas(center+90);
+    const sel=state.leadSelections[l.name];
+    const col=sel==='pos'?'rgba(0,212,170,0.10)':'rgba(255,71,87,0.10)';
+    ctx.save();
+    ctx.fillStyle=col;
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,R-4,startRad,endRad);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
+
+  if(N<2) return;
+
+  // 2. Draw pairwise overlaps
+  for(let i=0;i<N;i++){
+    for(let j=i+1;j<N;j++){
+      drawSectorIntersection(ctx,cx,cy,R-4,
+        [activeLeads[i],activeLeads[j]],
+        'rgba(0,212,170,0.22)',false,W,H
+      );
+    }
+  }
+
+  if(N<3) return;
+
+  // 3. Triple overlaps
+  for(let i=0;i<N;i++){
+    for(let j=i+1;j<N;j++){
+      for(let k=j+1;k<N;k++){
+        drawSectorIntersection(ctx,cx,cy,R-4,
+          [activeLeads[i],activeLeads[j],activeLeads[k]],
+          'rgba(0,212,170,0.35)',false,W,H
+        );
+      }
+    }
+  }
+
+  if(N<4) return;
+
+  // 4. Quad overlaps
+  for(let i=0;i<N;i++){
+    for(let j=i+1;j<N;j++){
+      for(let k=j+1;k<N;k++){
+        for(let l=k+1;l<N;l++){
+          drawSectorIntersection(ctx,cx,cy,R-4,
+            [activeLeads[i],activeLeads[j],activeLeads[k],activeLeads[l]],
+            'rgba(0,212,170,0.45)',false,W,H
+          );
+        }
+      }
+    }
+  }
+
+  // 5. FULL intersection of ALL leads → bright green
+  if(N>=2){
+    drawSectorIntersection(ctx,cx,cy,R-4, activeLeads, null, true, W,H);
+  }
+}
+
+function drawSectorIntersection(ctx,cx,cy,R,leads,color,isFullIntersect,W,H){
+  // Use offscreen canvas clipping approach:
+  // For each lead sector, create a mask. Combine with source-in to get true intersection.
+  W = W || compassCanvas.width;
+  H = H || compassCanvas.height;
+  // Build intersection via successive clipping
+  const off=document.createElement('canvas');
+  off.width=W; off.height=H;
+  const octx=off.getContext('2d');
+
+  // Start with full circle filled
+  octx.fillStyle='#fff';
+  octx.beginPath(); octx.arc(cx,cy,R,0,Math.PI*2); octx.fill();
+
+  // Clip with each sector
+  leads.forEach(l=>{
+    const center=sectorCenter(l);
+    const startRad=degToCanvas(center-90);
+    const endRad=degToCanvas(center+90);
+    const mask=document.createElement('canvas');
+    mask.width=W; mask.height=H;
+    const mctx=mask.getContext('2d');
+    mctx.fillStyle='#fff';
+    mctx.beginPath();
+    mctx.moveTo(cx,cy);
+    mctx.arc(cx,cy,R,startRad,endRad);
+    mctx.closePath();
+    mctx.fill();
+    // Apply mask: keep only intersection
+    octx.globalCompositeOperation='destination-in';
+    octx.drawImage(mask,0,0);
+    octx.globalCompositeOperation='source-over';
+  });
+
+  // Now draw the intersection shape onto main canvas
+  if(isFullIntersect){
+    // Bright green highlight for full intersection
+    ctx.save();
+    ctx.globalAlpha=0.72;
+    ctx.globalCompositeOperation='source-over';
+    // Colorize the off canvas
+    const colored=document.createElement('canvas');
+    colored.width=W; colored.height=H;
+    const cctx=colored.getContext('2d');
+    cctx.fillStyle='#00ff99';
+    cctx.fillRect(0,0,W,H);
+    cctx.globalCompositeOperation='destination-in';
+    cctx.drawImage(off,0,0);
+    ctx.drawImage(colored,0,0);
+    // Add glow border
+    ctx.globalAlpha=0.5;
+    ctx.strokeStyle='#00ffaa';
+    ctx.lineWidth=1.5;
+    ctx.drawImage(off,0,0); // outline effect via shadow
+    ctx.restore();
+  } else if(color){
+    ctx.save();
+    ctx.globalCompositeOperation='source-over';
+    const colored=document.createElement('canvas');
+    colored.width=W; colored.height=H;
+    const cctx=colored.getContext('2d');
+    cctx.fillStyle=color;
+    cctx.fillRect(0,0,W,H);
+    cctx.globalCompositeOperation='destination-in';
+    cctx.drawImage(off,0,0);
+    ctx.drawImage(colored,0,0);
+    ctx.restore();
+  }
+}
+
+// Compass click
+compassCanvas.addEventListener('click',e=>{
+  const rect=compassCanvas.getBoundingClientRect();
+  const dx=e.clientX-rect.left-compassCanvas.width/2;
+  const dy=e.clientY-rect.top-compassCanvas.height/2;
+  // Convert canvas coords back to ECG degrees
+  // canvas: x+ = right, y+ = down → angle = atan2(dy,dx) in radians
+  let deg=Math.round(Math.atan2(dy,dx)*180/Math.PI);
+  // Normalize to -180..+180
+  if(deg>180) deg-=360;
+  state.compassAxis=deg;
+  const el=document.getElementById('axisDisplay');
+  el.textContent=`Eixo: ${deg}°`;
+  document.getElementById('axisLabel').textContent=deg+'°';
+  drawCompass();
+});
+
+// ═══════════════════════════════════════
+// LEAD PANEL
+// ═══════════════════════════════════════
+function renderLeadPanel(){
+  const container=document.getElementById('leadsContainer');
+  container.innerHTML=`<div class="leads-title">Selecione + ou − para cada derivação</div>`;
+  LEADS.forEach(l=>{
+    const sel=state.leadSelections[l.name];
+    const row=document.createElement('div');
+    row.className='lead-row'+(sel?' has-selection':'');
+    row.innerHTML=`
+      <span class="lead-name">${l.name}</span>
+      <div class="lead-toggles">
+        <button class="lead-toggle pos${sel==='pos'?' active':''}" data-lead="${l.name}" data-val="pos">+</button>
+        <button class="lead-toggle neg${sel==='neg'?' active':''}" data-lead="${l.name}" data-val="neg">−</button>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+  container.innerHTML+=`<div class="leads-hint">💡 A região <b style="color:#00ff99">verde brilhante</b> mostra onde o eixo está mais provável de estar (interseção de todos os setores ativos).</div>`;
+  // Bind toggles
+  container.querySelectorAll('.lead-toggle').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const name=btn.dataset.lead, val=btn.dataset.val;
+      state.leadSelections[name]=state.leadSelections[name]===val?null:val;
+      renderLeadPanel();
+      drawCompass();
+      // Sync FS if open
+      if(document.getElementById('compassFSOverlay').classList.contains('open')){
+        renderFSLeads();
+        drawCompass(document.getElementById('compassFSCanvas'));
+      }
+    });
+  });
+}
+
+// ═══════════════════════════════════════
+// MODE SELECTOR
+// ═══════════════════════════════════════
+document.getElementById('modeDigital').addEventListener('click',()=>setMode('digital'));
+document.getElementById('modeReal').addEventListener('click',()=>setMode('real'));
+
+function setMode(mode){
+  state.mode=mode;
+  document.getElementById('modeDigital').classList.toggle('active',mode==='digital');
+  document.getElementById('modeReal').classList.toggle('active',mode==='real');
+  const ep=document.getElementById('ecgPanel');
+  const bp=document.getElementById('bottomPanel');
+  const rp=document.getElementById('rightPanel');
+  if(mode==='real'){
+    ep.classList.add('hidden');
+    // Step panel fills column 1 rows 1+2 only — right panel stays in column 2
+    bp.classList.add('full-width');
+    bp.style.gridRow='1/3';
+    bp.style.gridColumn='1';
+    rp.style.gridRow='';   // let CSS rule handle it (1/3 stays via .right-panel)
+    rp.style.gridColumn='';
+  } else {
+    ep.classList.remove('hidden');
+    bp.classList.remove('full-width');
+    bp.style.gridRow='';
+    bp.style.gridColumn='';
+    rp.style.gridRow='';
+    rp.style.gridColumn='';
+  }
+}
+
+// ═══════════════════════════════════════
+// POINTER / TOUCH / TRACKPAD EVENTS
+// ═══════════════════════════════════════
+let activePointers=[];
+let lastPinchDist=null;
+let lastTwoFingerCenter=null;
+
+overlayCanvas.addEventListener('pointerdown',e=>{
+  activePointers.push({id:e.pointerId,x:e.clientX,y:e.clientY});
+  if(activePointers.length===2){ lastPinchDist=pointerDist(); lastTwoFingerCenter=pointerCenter(); return; }
+
+  const rect=overlayCanvas.getBoundingClientRect();
+  const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+  const w=s2w(sx,sy);
+
+  if(state.tool==='pan'){
+    state.isPanning=true;
+    state.panStart={x:e.clientX-state.panX,y:e.clientY-state.panY};
+    overlayCanvas.style.cursor='grabbing'; return;
+  }
+  if(state.tool==='ruler'){
+    state.isRulerDragging=true; state.rulerStart=w; state.rulerEnd=w; return;
+  }
+  if(state.tool==='hrscale'){
+    state.isHRScaleDragging=true; state.hrScaleStart=w; state.hrScaleEnd=w;
+    overlayCanvas.setPointerCapture(e.pointerId); return;
+  }
+  if(state.tool==='draw'||state.tool==='erase'){
+    state.currentStroke={type:state.tool==='erase'?'erase':'path',color:state.color,size:state.size,points:[w]};
+    overlayCanvas.setPointerCapture(e.pointerId); return;
+  }
+  if(state.tool==='line'||state.tool==='arrow'){
+    state.currentStroke={type:state.tool,color:state.color,size:state.size,x1:w.x,y1:w.y,x2:w.x,y2:w.y};
+    overlayCanvas.setPointerCapture(e.pointerId); return;
+  }
+});
+
+overlayCanvas.addEventListener('pointermove',e=>{
+  // Update pointer list
+  const idx=activePointers.findIndex(p=>p.id===e.pointerId);
+  if(idx>=0) activePointers[idx]={id:e.pointerId,x:e.clientX,y:e.clientY};
+
+  // Two-finger gesture: pan + pinch
+  if(activePointers.length===2){
+    const dist=pointerDist();
+    const center=pointerCenter();
+    if(lastPinchDist&&lastTwoFingerCenter){
+      // Pinch zoom
+      const scale=dist/lastPinchDist;
+      const cx=center.x-overlayCanvas.getBoundingClientRect().left;
+      const cy=center.y-overlayCanvas.getBoundingClientRect().top;
+      const newZoom=Math.min(8,Math.max(.1,state.zoom*scale));
+      state.panX=cx-(cx-state.panX)*(newZoom/state.zoom);
+      state.panY=cy-(cy-state.panY)*(newZoom/state.zoom);
+      state.zoom=newZoom;
+      // Two-finger pan
+      const dxPan=center.x-lastTwoFingerCenter.x;
+      const dyPan=center.y-lastTwoFingerCenter.y;
+      state.panX+=dxPan; state.panY+=dyPan;
+      updateZoomLabel();
+      renderECG(); renderDraw(); renderOverlay();
+    }
+    lastPinchDist=dist; lastTwoFingerCenter=center; return;
+  }
+
+  const rect=overlayCanvas.getBoundingClientRect();
+  const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+  const w=s2w(sx,sy);
+
+  if(state.isPanning){
+    state.panX=e.clientX-state.panStart.x; state.panY=e.clientY-state.panStart.y;
+    renderECG(); renderDraw(); renderOverlay(); return;
+  }
+  if(state.isRulerDragging){ state.rulerEnd=w; renderOverlay(); return; }
+  if(state.isHRScaleDragging){ state.hrScaleEnd=w; renderOverlay(); return; }
+  if(state.currentStroke){
+    if(state.currentStroke.type==='erase'){
+      // Real-time eraser: apply immediately on move
+      state.currentStroke.points.push(w);
+      pushUndo();
+      state.annotations.push({...state.currentStroke, points:[...state.currentStroke.points]});
+      state.currentStroke={type:'erase',color:state.color,size:state.size,points:[w]};
+      renderDraw(); renderOverlay();
+    } else if(state.currentStroke.points){
+      state.currentStroke.points.push(w);
+      renderOverlay();
+    } else {
+      state.currentStroke.x2=w.x; state.currentStroke.y2=w.y;
+      renderOverlay();
+    }
+  }
+});
+
+overlayCanvas.addEventListener('pointerup',e=>{
+  activePointers=activePointers.filter(p=>p.id!==e.pointerId);
+  if(activePointers.length<2){ lastPinchDist=null; lastTwoFingerCenter=null; }
+
+  if(state.isPanning){ state.isPanning=false; overlayCanvas.style.cursor=''; return; }
+  if(state.isRulerDragging){ state.isRulerDragging=false; return; }
+  if(state.isHRScaleDragging){ state.isHRScaleDragging=false; return; }
+  if(state.currentStroke){
+    const ok=(state.currentStroke.points&&state.currentStroke.points.length>1)||
+              state.currentStroke.type==='line'||state.currentStroke.type==='arrow';
+    if(ok){
+      const copy={...state.currentStroke};
+      if(copy.points) copy.points=[...copy.points];
+      pushUndo();
+      state.annotations.push(copy);
+    }
+    state.currentStroke=null; renderDraw(); renderOverlay();
+  }
+});
+
+overlayCanvas.addEventListener('pointercancel',e=>{
+  activePointers=activePointers.filter(p=>p.id!==e.pointerId);
+});
+
+function pointerDist(){
+  if(activePointers.length<2) return 0;
+  const dx=activePointers[0].x-activePointers[1].x, dy=activePointers[0].y-activePointers[1].y;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+function pointerCenter(){
+  if(activePointers.length<2) return {x:0,y:0};
+  return {x:(activePointers[0].x+activePointers[1].x)/2, y:(activePointers[0].y+activePointers[1].y)/2};
+}
+
+// Trackpad two-finger pan & pinch-zoom (wheel event)
+ecgContainer.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const rect=ecgContainer.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  if(e.ctrlKey||e.metaKey){
+    // Pinch zoom on trackpad
+    const factor=e.deltaY<0?1.08:0.93;
+    const nz=Math.min(8,Math.max(.1,state.zoom*factor));
+    state.panX=mx-(mx-state.panX)*(nz/state.zoom);
+    state.panY=my-(my-state.panY)*(nz/state.zoom);
+    state.zoom=nz;
+    updateZoomLabel();
+  } else {
+    // Two-finger pan
+    state.panX-=e.deltaX; state.panY-=e.deltaY;
+  }
+  renderECG(); renderDraw(); renderOverlay();
+},{passive:false});
+
+// ═══════════════════════════════════════
+// TOOLS
+// ═══════════════════════════════════════
+['Pan','Draw','Erase','Line','Arrow','Ruler','HRScale'].forEach(t=>{
+  const btn=document.getElementById('tool'+t); if(!btn) return;
+  btn.addEventListener('click',()=>{
+    state.tool=t.toLowerCase();
+    document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    if(state.tool==='ruler'){ state.rulerStart=null; state.rulerEnd=null; rulerInfo.classList.remove('visible'); }
+    if(state.tool==='hrscale'){ state.hrScaleStart=null; state.hrScaleEnd=null; renderOverlay(); }
+    overlayCanvas.style.cursor=state.tool==='pan'?'grab':'crosshair';
+  });
+});
+
+document.getElementById('drawColor').addEventListener('input',e=>state.color=e.target.value);
+document.getElementById('drawSize').addEventListener('input',e=>{
+  state.size=+e.target.value; document.getElementById('drawSizeVal').textContent=e.target.value;
+});
+document.getElementById('brightness').addEventListener('input',e=>{state.brightness=e.target.value;renderECG();});
+document.getElementById('contrastSlider').addEventListener('input',e=>{state.contrast=e.target.value;renderECG();});
+document.getElementById('pxPerMm').addEventListener('input',e=>{state.pxPerMm=+e.target.value;updateRulerInfo();});
+document.getElementById('mmPerSec').addEventListener('input',e=>{state.mmPerSec=+e.target.value;updateRulerInfo();});
+
+// ═══════════════════════════════════════
+// ZOOM
+// ═══════════════════════════════════════
+function updateZoomLabel(){ document.getElementById('zoomLabel').textContent=Math.round(state.zoom*100)+'%'; }
+document.getElementById('zoomIn').addEventListener('click',()=>{state.zoom=Math.min(8,state.zoom*1.25);updateZoomLabel();renderECG();renderDraw();renderOverlay();});
+document.getElementById('zoomOut').addEventListener('click',()=>{state.zoom=Math.max(.1,state.zoom/1.25);updateZoomLabel();renderECG();renderDraw();renderOverlay();});
+document.getElementById('zoomFit').addEventListener('click',fitImage);
+function fitImage(){
+  if(!state.hasImage) return;
+  const cw=ecgCanvas.width, ch=ecgCanvas.height;
+  const scale=Math.min(cw/state.imageWidth,ch/state.imageHeight)*.95;
+  state.zoom=scale; state.panX=(cw-state.imageWidth*scale)/2; state.panY=(ch-state.imageHeight*scale)/2;
+  updateZoomLabel(); renderECG(); renderDraw(); renderOverlay();
+}
+
+// ═══════════════════════════════════════
+// UNDO / REDO
+// ═══════════════════════════════════════
+function pushUndo(){
+  state.undoStack.push(JSON.parse(JSON.stringify(state.annotations)));
+  state.redoStack=[];
+  if(state.undoStack.length>50) state.undoStack.shift();
+}
+
+document.getElementById('undoBtn').addEventListener('click',()=>{
+  if(state.undoStack.length>0){
+    state.redoStack.push(JSON.parse(JSON.stringify(state.annotations)));
+    state.annotations=state.undoStack.pop();
+    renderDraw(); renderOverlay();
+  }
+});
+document.getElementById('redoBtn').addEventListener('click',()=>{
+  if(state.redoStack.length>0){
+    state.undoStack.push(JSON.parse(JSON.stringify(state.annotations)));
+    state.annotations=state.redoStack.pop();
+    renderDraw(); renderOverlay();
+  }
+});
+document.getElementById('clearDrawBtn').addEventListener('click',()=>{
+  pushUndo();
+  state.annotations=[]; renderDraw(); renderOverlay(); showToast('Anotações removidas','success');
+});
+
+// ═══════════════════════════════════════
+// FILE UPLOAD
+// ═══════════════════════════════════════
+document.getElementById('uploadCard').addEventListener('click',()=>document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change',e=>{if(e.target.files[0])loadFile(e.target.files[0]);});
+ecgContainer.addEventListener('dragover',e=>{e.preventDefault();document.getElementById('uploadCard').classList.add('drag-over');});
+ecgContainer.addEventListener('dragleave',()=>document.getElementById('uploadCard').classList.remove('drag-over'));
+ecgContainer.addEventListener('drop',e=>{
+  e.preventDefault(); document.getElementById('uploadCard').classList.remove('drag-over');
+  if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+async function loadFile(file){
+  const ext=file.name.split('.').pop().toLowerCase();
+  uploadZone.classList.add('hidden');
+  try{
+    if(ext==='pdf') await loadPDF(file); else await loadImage(file);
+    fitImage(); showToast('ECG carregado!','success');
+  }catch(err){ uploadZone.classList.remove('hidden'); showToast('Erro: '+err.message,'error'); }
+}
+
+function loadImage(file){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      state.imageObj=img; state.imageWidth=img.width; state.imageHeight=img.height;
+      state.hasImage=true; state.pxPerMm=img.width/250;
+      document.getElementById('pxPerMm').value=state.pxPerMm.toFixed(2); res();
+    };
+    img.onerror=rej; img.src=url;
+  });
+}
+
+async function loadPDF(file){
+  if(!pdfjsLib) throw new Error('PDF.js não disponível');
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  const page=await pdf.getPage(1);
+  const vp=page.getViewport({scale:3});
+  const off=document.createElement('canvas'); off.width=vp.width; off.height=vp.height;
+  await page.render({canvasContext:off.getContext('2d'),viewport:vp}).promise;
+  const img=new Image();
+  await new Promise((r,j)=>{img.onload=r;img.onerror=j;img.src=off.toDataURL();});
+  state.imageObj=img; state.imageWidth=img.width; state.imageHeight=img.height;
+  state.hasImage=true; state.pxPerMm=img.width/750;
+  document.getElementById('pxPerMm').value=state.pxPerMm.toFixed(2);
+}
+
+document.getElementById('calibRulerBtn').addEventListener('click',()=>{
+  if(!state.rulerStart||!state.rulerEnd){showToast('Use a régua primeiro','error');return;}
+  const mm=prompt('Distância real em mm?','5'); if(!mm) return;
+  const dx=state.rulerEnd.x-state.rulerStart.x, dy=state.rulerEnd.y-state.rulerStart.y;
+  state.pxPerMm=Math.sqrt(dx*dx+dy*dy)/parseFloat(mm);
+  document.getElementById('pxPerMm').value=state.pxPerMm.toFixed(2);
+  updateRulerInfo(); showToast('Calibrado: '+state.pxPerMm.toFixed(2)+' px/mm','success');
+});
+
+// ═══════════════════════════════════════
+// WIZARD
+// ═══════════════════════════════════════
+const STEPS=[
+  {id:'patient',title:'Identificação do Paciente',desc:'Confirme os dados do paciente antes de iniciar.',tip:'Dados clínicos contextualizam alterações do ECG.',
+   hasPatientInput:true,
+   checklist:['Data e hora do exame','História clínica relevante','Medicamentos em uso','Indicação do exame']},
+  {id:'tech',title:'Configuração Técnica',desc:'Verifique os parâmetros de gravação do traçado.',tip:'Padrão: 10mm/mV, 25mm/s. 1 quadrado pequeno = 0.04s = 0.1mV.',
+   noNote:true,
+   checklist:['Amplitude: N=10mm/mV, N/2=5mm/mV ou 2N=20mm/mV','Velocidade: 25mm/s ou 50mm/s','Qualidade técnica sem artefatos','12 derivações presentes','Presença de calibrador']},
+  {id:'rhythm',title:'Ritmo e Frequência',desc:'Analise o ritmo e calcule a frequência cardíaca.',tip:'FC: 300÷nº quadrados grandes entre RR. Ritmo sinusal: P antes de cada QRS.',
+   hasRhythm:true, hasHR:true, hasExtrasystoles:true, noNote:true,
+   checklist:['Ritmo regular ou irregular','P:QRS 1:1','Onda P presente em DI, DII e aVF','P negativa em aVR']},
+  {id:'ondaP',title:'Onda P',desc:'Avalie a morfologia da onda P para detectar sobrecargas atriais.',tip:'P bífida (>120ms) = sobrecarga atrial esquerda. P apiculada (>2.5mm) = sobrecarga atrial direita.',
+   hasOndaP:true, noNote:true,
+   checklist:['Morfologia da onda P normal','Avaliar sobrecarga atrial direita','Avaliar sobrecarga atrial esquerda']},
+  {id:'pr',title:'Intervalo PR',desc:'O PR reflete a condução atrioventricular.',tip:'Normal: 120-200ms (3-5 quadrados pequenos). PR fixo longo = BAV1°.',
+   checklist:['Medir PR do início de P ao início do QRS (Normal: 120–200ms)','PR curto (<120ms): pré-excitação?','PR longo (>200ms): BAV 1° grau','PR constante ou variável?']},
+  {id:'qrs',title:'Complexo QRS',desc:'Despolarização ventricular — a parte mais informativa.',tip:'BRD: rSR\' em V1 + QRS>120ms. BRE: QS em V1 + R entalhado em V5-V6.',
+   hasQRS:true, noNote:true,
+   checklist:['Duração QRS (normal <120ms)','Eixo elétrico (-30° a +90°)','Ondas delta (pré-excitação)']},
+  {id:'qwave',title:'Ondas Q Patológicas',desc:'Indicam necrose miocárdica transmural prévia.',tip:'Q patológica: >1mm largura ou >25% da amplitude do QRS.',
+   checklist:['V1-V4: território da artéria descendente anterior','DII, DIII, aVF: artéria coronária direita','DI, aVL, V5-V6: artéria circunflexa','Comparar com ECG anterior','Correlacionar com história clínica']},
+  {id:'st',title:'Segmento ST',desc:'Crucial para diagnóstico de isquemia aguda.',tip:'Supra convexo + dor = emergência! Supra côncavo difuso = pericardite.',
+   checklist:['Ponto J identificado','Supra ou infradesnivelamento >1mm','Morfologia: côncavo, convexo ou descendente','Localização do território comprometido','Imagem especular presente?']},
+  {id:'twave',title:'Onda T',desc:'Sensível à isquemia e distúrbios eletrolíticos.',tip:'Padrão de Wellens: T bifásica/invertida em V1-V3 = estenose crítica da DA.',
+   checklist:['Polaridade normal (pos em DI, DII, V3-V6)','Simetria e amplitude','T invertida: isquemia, BRE, miocardiopatia','T alta e pontiaguda: hipercalemia','T bifásica em V1-V3 (Wellens)?']},
+  {id:'qt',title:'Intervalo QT e Conclusão',desc:'Avalia risco de arritmias ventriculares graves.',tip:'QTc >480ms = alto risco de torsades. Verificar K⁺, Mg²⁺ e medicamentos.',
+   hasQTCalc:true,
+   checklist:['Medir QT do início do QRS ao final da onda T','Calcular QTc (Bazett: QT÷√RR)','QTc normal: <440ms ♂, <460ms ♀','QT longo: medicamentos, eletrólitos, canalopatias','Formular conclusão clínica final']},
+];
+
+function renderWizard(){
+  const step=STEPS[state.currentStep];
+  const prog=document.getElementById('wizardProgress');
+  prog.innerHTML='';
+  STEPS.forEach((_,i)=>{
+    const dot=document.createElement('div');
+    dot.className='step-dot'+(i<state.currentStep?' done':i===state.currentStep?' active':'');
+    dot.addEventListener('click',()=>{state.currentStep=i;renderWizard();});
+    prog.appendChild(dot);
+  });
+  const checks=state.stepChecks[state.currentStep]||(state.stepChecks[state.currentStep]=new Array(step.checklist.length).fill(false));
+  const content=document.getElementById('stepContent');
+
+  // Build HTML
+  let html=`
+    <div><div class="step-badge">Passo ${state.currentStep+1} de ${STEPS.length}</div></div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div class="step-title">${step.title}</div>
+      ${step.hasRhythm?`<button class="calc-icon-btn" id="hrCalcOpenBtn" title="Calculadora FC">🧮</button>`:''}
+      ${step.hasQTCalc?`<button class="calc-icon-btn" id="qtcCalcOpenBtn" title="Calculadora QTc">🧮</button>`:''}
+    </div>
+    <div class="step-desc">${step.desc}</div>`;
+
+  // Patient info input
+  if(step.hasPatientInput){
+    html+=`<div class="step-label-row">👤 Nome, idade e sexo do paciente</div>
+    <input class="step-input" id="patientInfo" type="text" placeholder="ex: João Silva, 65 anos, masculino" value="${state.patientInfo||''}">`;
+  }
+
+  // Rhythm selector
+  if(step.hasRhythm){
+    const rhythmOptions=['Sinusal','Juncional','Atrial ectópico','Flutter atrial','Fibrilação atrial','Taquicardia ventricular','Marcapasso','Outro'];
+    const sel=state.rhythmSelected||'';
+    html+=`<div class="step-label-row">
+      Ritmo
+      <div class="tooltip-wrap">
+        <span class="tooltip-icon info">!</span>
+        <div class="tooltip-popup">Se houver onda P presente em DI, DII e aVF → <b>Ritmo Sinusal</b></div>
+      </div>
+    </div>
+    <div class="step-select-group">
+      <div class="step-select-trigger${state.rhythmOpen?' open':''}" id="rhythmTrigger">
+        ${sel||'Selecionar ritmo...'} <span>${state.rhythmOpen?'▲':'▼'}</span>
+      </div>
+      <div class="step-select-options${state.rhythmOpen?' open':''}" id="rhythmOptions">
+        ${rhythmOptions.map(r=>`<div class="step-select-option${sel===r?' selected':''}" data-rhythm="${r}"><div class="opt-dot"></div>${r}</div>`).join('')}
+      </div>
+    </div>
+    ${sel?`<div class="selected-tag">✓ ${sel}</div>`:''}`;
+
+    // Extrasystoles
+    const exOpts=['ESSV (Extrassístole Supraventricular)','ESV (Extrassístole Ventricular)','Bigeminismo','Trigeminismo','Quadrigeminismo','TVNS (TV não sustentada)'];
+    const exSel=state.extrasysSelected||'';
+    html+=`<div class="step-label-row">Extrassístoles</div>
+    <div class="step-select-group">
+      <div class="step-select-trigger${state.extrasysOpen?' open':''}" id="extrasystoleTrigger">
+        ${exSel||'Verificar extrassístoles...'} <span>${state.extrasysOpen?'▲':'▼'}</span>
+      </div>
+      <div class="step-select-options${state.extrasysOpen?' open':''}" id="extrasystoleOptions">
+        ${exOpts.map(r=>`<div class="step-select-option${exSel===r?' selected':''}" data-extrasys="${r}"><div class="opt-dot"></div>${r}</div>`).join('')}
+      </div>
+    </div>
+    ${exSel?`<div class="selected-tag">✓ ${exSel}</div>`:''}`;
+  }
+
+  // Heart rate input
+  if(step.hasHR){
+    html+=`<div class="step-label-row">Frequência Cardíaca (bpm)</div>
+    <input class="step-input" id="hrInput" type="number" placeholder="ex: 75" min="1" max="400" value="${state.hrValue||''}">`;
+  }
+
+  // Onda P
+  if(step.hasOndaP){
+    const saOpts=['Sobrecarga Atrial Direita (SAD)','Sobrecarga Atrial Esquerda (SAE)','Sobrecarga Biatrial'];
+    const saSel=state.atrialEnlargement||'';
+    html+=`<div class="step-label-row">
+      Sobrecarga Atrial
+      <div class="tooltip-wrap">
+        <span class="tooltip-icon">?</span>
+        <div class="tooltip-popup"><b>SAD</b>: Onda P apiculada, amplitude ≥2.5mm em DII<br><b>SAE</b>: Onda P bífida, duração ≥120ms em DII ou componente negativo em V1 ≥1mm e ≥40ms</div>
+      </div>
+    </div>
+    <div class="step-select-group">
+      <div class="step-select-trigger${state.atrialOpen?' open':''}" id="atrialTrigger">
+        ${saSel||'Sem sobrecarga atrial'} <span>${state.atrialOpen?'▲':'▼'}</span>
+      </div>
+      <div class="step-select-options${state.atrialOpen?' open':''}" id="atrialOptions">
+        <div class="step-select-option${!saSel?' selected':''}" data-atrial=""><div class="opt-dot"></div>Sem sobrecarga atrial</div>
+        ${saOpts.map(r=>`<div class="step-select-option${saSel===r?' selected':''}" data-atrial="${r}"><div class="opt-dot"></div>${r}</div>`).join('')}
+      </div>
+    </div>
+    ${saSel?`<div class="selected-tag">✓ ${saSel}</div>`:''}`;
+  }
+
+  // QRS complex extras
+  if(step.hasQRS){
+    // Fascicular blocks
+    const fascOpts=['BDAS (Bloqueio Divisional Anterossuperior)','BDPI (Bloqueio Divisional Posteroinferior)'];
+    const fascSel=state.fascicularBlock||'';
+    html+=`<div class="step-label-row">Bloqueios Divisionais</div>
+    <div class="step-select-group">
+      <div class="step-select-trigger${state.fascicularOpen?' open':''}" id="fascicularTrigger">
+        ${fascSel||'Sem bloqueio divisional'} <span>${state.fascicularOpen?'▲':'▼'}</span>
+      </div>
+      <div class="step-select-options${state.fascicularOpen?' open':''}" id="fascicularOptions">
+        <div class="step-select-option${!fascSel?' selected':''}" data-fascicular=""><div class="opt-dot"></div>Sem bloqueio divisional</div>
+        ${fascOpts.map(r=>`<div class="step-select-option${fascSel===r?' selected':''}" data-fascicular="${r}"><div class="opt-dot"></div>${r}</div>`).join('')}
+      </div>
+    </div>
+    ${fascSel?`<div class="selected-tag">✓ ${fascSel}</div>`:''}`;
+
+    // Bundle branch blocks
+    const bbbOpts=['Bloqueio de Ramo Esquerdo (BRE) completo','Bloqueio de Ramo Direito (BRD) completo','BRD incompleto','BRE incompleto'];
+    const bbbSel=state.bundleBranch||'';
+    html+=`<div class="step-label-row">
+      Bloqueios de Ramo
+      <div class="tooltip-wrap">
+        <span class="tooltip-icon">?</span>
+        <div class="tooltip-popup"><b>BRD completo</b>: QRS ≥120ms + rSR' em V1 + S largo em V5-V6<br><b>BRE completo</b>: QRS ≥120ms + R entalhado em V5-V6 + QS em V1<br><b>Incompleto</b>: mesma morfologia + QRS 110-119ms</div>
+      </div>
+    </div>
+    <div class="step-select-group">
+      <div class="step-select-trigger${state.bundleBranchOpen?' open':''}" id="bundleBranchTrigger">
+        ${bbbSel||'Sem bloqueio de ramo'} <span>${state.bundleBranchOpen?'▲':'▼'}</span>
+      </div>
+      <div class="step-select-options${state.bundleBranchOpen?' open':''}" id="bundleBranchOptions">
+        <div class="step-select-option${!bbbSel?' selected':''}" data-bbb=""><div class="opt-dot"></div>Sem bloqueio de ramo</div>
+        ${bbbOpts.map(r=>`<div class="step-select-option${bbbSel===r?' selected':''}" data-bbb="${r}"><div class="opt-dot"></div>${r}</div>`).join('')}
+      </div>
+    </div>
+    ${bbbSel?`<div class="selected-tag">✓ ${bbbSel}</div>`:''}`;
+
+    // Ventricular hypertrophy
+    const vhOpts=['SVD (Sobrecarga Ventricular Direita)','SVE (Sobrecarga Ventricular Esquerda)'];
+    const vhSel=state.ventHypertrophy||'';
+    html+=`<div class="step-label-row">
+      Sobrecarga Ventricular
+      <div class="tooltip-wrap">
+        <span class="tooltip-icon">?</span>
+        <div class="tooltip-popup"><b>SVE</b>:<br>• Sokolow-Lyon: SV1+RV5 ≥35mm<br>• R em aVL ≥11mm<br>• Peguero-LoPresti: SD+SV4 ≥28mm♂ / ≥23mm♀<br><b>SVD</b>:<br>• R/S em V1 ≥1<br>• qR em V1<br>• Desvio de eixo para direita (>+100°)</div>
+      </div>
+    </div>
+    <div class="step-select-group">
+      <div class="step-select-trigger${state.ventHypertrophyOpen?' open':''}" id="ventHypertrophyTrigger">
+        ${vhSel||'Sem sobrecarga ventricular'} <span>${state.ventHypertrophyOpen?'▲':'▼'}</span>
+      </div>
+      <div class="step-select-options${state.ventHypertrophyOpen?' open':''}" id="ventHypertrophyOptions">
+        <div class="step-select-option${!vhSel?' selected':''}" data-vh=""><div class="opt-dot"></div>Sem sobrecarga ventricular</div>
+        ${vhOpts.map(r=>`<div class="step-select-option${vhSel===r?' selected':''}" data-vh="${r}"><div class="opt-dot"></div>${r}</div>`).join('')}
+      </div>
+    </div>
+    ${vhSel?`<div class="selected-tag">✓ ${vhSel}</div>`:''}`;
+  }
+
+  // Checklist
+  html+=`<ul class="step-checklist" id="checklist">
+    ${step.checklist.map((item,i)=>`
+      <li class="${checks[i]?'checked':''}" data-idx="${i}">
+        <div class="check-box">${checks[i]?'✓':''}</div><span>${item}</span>
+      </li>`).join('')}
+  </ul>
+  <div class="tip-box">💡 ${step.tip}</div>`;
+
+  // Note area (skip if noNote)
+  if(!step.noNote){
+    html+=`<textarea class="step-note" placeholder="Suas anotações clínicas para este passo..." id="stepNote">${state.notes[state.currentStep]||''}</textarea>`;
+  }
+
+  content.innerHTML=html;
+
+  // Bind checklist
+  document.querySelectorAll('#checklist li').forEach(li=>{
+    li.addEventListener('click',()=>{
+      const idx=+li.dataset.idx; checks[idx]=!checks[idx]; renderWizard();
+    });
+  });
+
+  // Note
+  const noteEl=document.getElementById('stepNote');
+  if(noteEl) noteEl.addEventListener('input',e=>{state.notes[state.currentStep]=e.target.value;});
+
+  // Patient info
+  const piEl=document.getElementById('patientInfo');
+  if(piEl) piEl.addEventListener('input',e=>{state.patientInfo=e.target.value;});
+
+  // HR input
+  const hrEl=document.getElementById('hrInput');
+  if(hrEl) hrEl.addEventListener('input',e=>{state.hrValue=e.target.value;});
+
+  // HR calc open
+  const hrCalcOpenBtn=document.getElementById('hrCalcOpenBtn');
+  if(hrCalcOpenBtn) hrCalcOpenBtn.addEventListener('click',()=>{
+    const el=document.getElementById('hrCalc');
+    if(el.classList.contains('open')){ closeCalc('hrCalc'); } else { closeCalc('qtcCalc'); openCalc('hrCalc'); }
+  });
+
+  // QTc calc open
+  const qtcCalcOpenBtn=document.getElementById('qtcCalcOpenBtn');
+  if(qtcCalcOpenBtn) qtcCalcOpenBtn.addEventListener('click',()=>{
+    const el=document.getElementById('qtcCalc');
+    if(el.classList.contains('open')){ closeCalc('qtcCalc'); } else { closeCalc('hrCalc'); openCalc('qtcCalc'); }
+  });
+
+  // Rhythm selector
+  const rhythmTrigger=document.getElementById('rhythmTrigger');
+  if(rhythmTrigger){
+    rhythmTrigger.addEventListener('click',()=>{state.rhythmOpen=!state.rhythmOpen;renderWizard();});
+    document.querySelectorAll('[data-rhythm]').forEach(opt=>{
+      opt.addEventListener('click',e=>{e.stopPropagation();state.rhythmSelected=opt.dataset.rhythm;state.rhythmOpen=false;renderWizard();});
+    });
+  }
+
+  // Extrasystole selector
+  const extrasystoleTrigger=document.getElementById('extrasystoleTrigger');
+  if(extrasystoleTrigger){
+    extrasystoleTrigger.addEventListener('click',()=>{state.extrasysOpen=!state.extrasysOpen;renderWizard();});
+    document.querySelectorAll('[data-extrasys]').forEach(opt=>{
+      opt.addEventListener('click',e=>{e.stopPropagation();state.extrasysSelected=opt.dataset.extrasys;state.extrasysOpen=false;renderWizard();});
+    });
+  }
+
+  // Atrial selector
+  const atrialTrigger=document.getElementById('atrialTrigger');
+  if(atrialTrigger){
+    atrialTrigger.addEventListener('click',()=>{state.atrialOpen=!state.atrialOpen;renderWizard();});
+    document.querySelectorAll('[data-atrial]').forEach(opt=>{
+      opt.addEventListener('click',e=>{e.stopPropagation();state.atrialEnlargement=opt.dataset.atrial;state.atrialOpen=false;renderWizard();});
+    });
+  }
+
+  // Fascicular selector
+  const fascicularTrigger=document.getElementById('fascicularTrigger');
+  if(fascicularTrigger){
+    fascicularTrigger.addEventListener('click',()=>{state.fascicularOpen=!state.fascicularOpen;renderWizard();});
+    document.querySelectorAll('[data-fascicular]').forEach(opt=>{
+      opt.addEventListener('click',e=>{e.stopPropagation();state.fascicularBlock=opt.dataset.fascicular;state.fascicularOpen=false;renderWizard();});
+    });
+  }
+
+  // Bundle branch selector
+  const bundleBranchTrigger=document.getElementById('bundleBranchTrigger');
+  if(bundleBranchTrigger){
+    bundleBranchTrigger.addEventListener('click',()=>{state.bundleBranchOpen=!state.bundleBranchOpen;renderWizard();});
+    document.querySelectorAll('[data-bbb]').forEach(opt=>{
+      opt.addEventListener('click',e=>{e.stopPropagation();state.bundleBranch=opt.dataset.bbb;state.bundleBranchOpen=false;renderWizard();});
+    });
+  }
+
+  // Ventricular hypertrophy selector
+  const ventHypertrophyTrigger=document.getElementById('ventHypertrophyTrigger');
+  if(ventHypertrophyTrigger){
+    ventHypertrophyTrigger.addEventListener('click',()=>{state.ventHypertrophyOpen=!state.ventHypertrophyOpen;renderWizard();});
+    document.querySelectorAll('[data-vh]').forEach(opt=>{
+      opt.addEventListener('click',e=>{e.stopPropagation();state.ventHypertrophy=opt.dataset.vh;state.ventHypertrophyOpen=false;renderWizard();});
+    });
+  }
+
+  document.getElementById('stepCounter').textContent=`Passo ${state.currentStep+1} de ${STEPS.length}`;
+  document.getElementById('prevStep').disabled=state.currentStep===0;
+  document.getElementById('nextStep').textContent=state.currentStep===STEPS.length-1?'✓ Gerar Laudo':'Próximo →';
+}
+
+document.getElementById('prevStep').addEventListener('click',()=>{if(state.currentStep>0){state.currentStep--;renderWizard();}});
+document.getElementById('nextStep').addEventListener('click',()=>{
+  if(state.currentStep<STEPS.length-1){state.currentStep++;renderWizard();}
+  else exportLaudo();
+});
+
+// ═══════════════════════════════════════
+// SAVE IMAGE
+// ═══════════════════════════════════════
+document.getElementById('saveBtn').addEventListener('click',()=>{
+  const off=document.createElement('canvas');
+  off.width=ecgCanvas.width; off.height=ecgCanvas.height;
+  const ctx=off.getContext('2d');
+  ctx.drawImage(ecgCanvas,0,0); ctx.drawImage(drawCanvas,0,0);
+  const a=document.createElement('a'); a.href=off.toDataURL('image/png'); a.download='ecg-anotado.png'; a.click();
+  showToast('Imagem salva!','success');
+});
+
+// ═══════════════════════════════════════
+// EXPORT LAUDO — only user's free-text notes
+// ═══════════════════════════════════════
+document.getElementById('exportBtn').addEventListener('click',exportLaudo);
+function exportLaudo(){
+  const lines=[
+    'LAUDO ECG — ANÁLISE SISTEMÁTICA',
+    '='.repeat(50),
+    `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
+    '',
+  ];
+  if(state.patientInfo){
+    lines.push(`PACIENTE: ${state.patientInfo}`,'');
+  }
+  if(state.compassAxis!==null){
+    lines.push(`Eixo Elétrico: ${state.compassAxis}°`,'');
+  }
+  if(state.rhythmSelected){
+    lines.push(`Ritmo: ${state.rhythmSelected}`);
+  }
+  if(state.hrValue){
+    lines.push(`Frequência Cardíaca: ${state.hrValue} bpm`);
+  }
+  if(state.extrasysSelected){
+    lines.push(`Extrassístoles: ${state.extrasysSelected}`);
+  }
+  if(state.rhythmSelected||state.hrValue||state.extrasysSelected) lines.push('');
+  if(state.atrialEnlargement){
+    lines.push(`Sobrecarga Atrial: ${state.atrialEnlargement}`,'');
+  }
+  if(state.fascicularBlock){
+    lines.push(`Bloqueio Divisional: ${state.fascicularBlock}`);
+  }
+  if(state.bundleBranch){
+    lines.push(`Bloqueio de Ramo: ${state.bundleBranch}`);
+  }
+  if(state.ventHypertrophy){
+    lines.push(`Sobrecarga Ventricular: ${state.ventHypertrophy}`);
+  }
+  if(state.fascicularBlock||state.bundleBranch||state.ventHypertrophy) lines.push('');
+
+  let hasContent=!!(state.patientInfo||state.rhythmSelected||state.hrValue||state.atrialEnlargement||state.fascicularBlock||state.bundleBranch||state.ventHypertrophy);
+  STEPS.forEach((step,i)=>{
+    const note=(state.notes[i]||'').trim();
+    if(note){
+      hasContent=true;
+      lines.push(`── ${step.title.toUpperCase()} ──`);
+      lines.push(note,'');
+    }
+  });
+  if(!hasContent){
+    lines.push('(Nenhuma anotação registrada. Utilize os campos de texto em cada passo do protocolo.)');
+  }
+  const blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='laudo-ecg.txt'; a.click();
+  showToast('Laudo exportado!','success');
+}
+
+// ═══════════════════════════════════════
+// RESET
+// ═══════════════════════════════════════
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  if(!confirm('Resetar tudo?')) return;
+  state.annotations=[]; state.drawHistory=[];state.undoStack=[];state.redoStack=[];
+  LEADS.forEach(l=>state.leadSelections[l.name]=null);
+  state.compassAxis=null; state.rulerStart=null; state.rulerEnd=null;
+  state.hrScaleStart=null; state.hrScaleEnd=null;
+  state.hasImage=false; state.imageObj=null; state.stepChecks={}; state.notes={};
+  state.currentStep=0;
+  state.patientInfo='';state.hrValue='';state.rhythmSelected='';state.rhythmOpen=false;
+  state.extrasysSelected='';state.extrasysOpen=false;state.atrialEnlargement='';state.atrialOpen=false;
+  state.fascicularBlock='';state.fascicularOpen=false;state.bundleBranch='';state.bundleBranchOpen=false;
+  state.ventHypertrophy='';state.ventHypertrophyOpen=false;
+  uploadZone.classList.remove('hidden');
+  document.getElementById('axisDisplay').textContent='';
+  document.getElementById('axisLabel').textContent='—';
+  renderLeadPanel(); renderWizard(); drawCompass();
+  renderECG(); renderDraw(); renderOverlay();
+  showToast('Resetado','success');
+});
+
+// ═══════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════
+document.getElementById('themeBtn').addEventListener('click',()=>{
+  state.isDark=!state.isDark;
+  document.documentElement.setAttribute('data-theme',state.isDark?'dark':'light');
+  document.getElementById('themeBtn').textContent=state.isDark?'🌙 Tema':'☀️ Tema';
+  renderECG(); drawCompass();
+});
+
+// ═══════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════
+let toastTimer;
+function showToast(msg,type=''){
+  const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+type;
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+// ═══════════════════════════════════════
+// COLLAPSE / EXPAND
+// ═══════════════════════════════════════
+function setupCollapse(btnId, collapseId){
+  const btn=document.getElementById(btnId);
+  const col=document.getElementById(collapseId);
+  if(!btn||!col) return;
+  btn.addEventListener('click',()=>{
+    const isCollapsed=col.classList.contains('collapsed');
+    if(isCollapsed){
+      col.classList.remove('collapsed');
+      col.classList.add('expanded');
+      btn.textContent='−';
+    } else {
+      col.classList.add('collapsed');
+      col.classList.remove('expanded');
+      btn.textContent='+';
+    }
+  });
+}
+setupCollapse('compassCollapseBtn','compassCollapsible');
+setupCollapse('calibCollapseBtn','calibCollapsible');
+
+// ═══════════════════════════════════════
+// FLOATING CALCULATORS — close logic
+// ═══════════════════════════════════════
+function closeCalc(id){ document.getElementById(id).classList.remove('open'); }
+function openCalc(id){
+  // position near center of ecg container if not yet positioned
+  const el=document.getElementById(id);
+  if(!el.style.left||el.style.left===''){
+    const c=ecgContainer.getBoundingClientRect();
+    el.style.left=Math.round(c.width/2-110)+'px';
+    el.style.top='60px';
+  }
+  el.classList.add('open');
+}
+
+// Delegated close — works even after renderWizard re-creates buttons
+document.addEventListener('click',e=>{
+  if(e.target.id==='hrCalcClose'||e.target.closest('#hrCalcClose')) closeCalc('hrCalc');
+  if(e.target.id==='qtcCalcClose'||e.target.closest('#qtcCalcClose')) closeCalc('qtcCalc');
+});
+
+// ESC key closes any open calculator
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    closeCalc('hrCalc'); closeCalc('qtcCalc');
+  }
+});
+
+// Click outside closes calculators (but not when clicking inside them)
+ecgContainer.addEventListener('pointerdown',e=>{
+  ['hrCalc','qtcCalc'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el.classList.contains('open') && !el.contains(e.target)){
+      closeCalc(id);
+    }
+  });
+},{capture:false});
+
+document.getElementById('hrCalcRR').addEventListener('input',e=>{
+  const rr=parseFloat(e.target.value);
+  const res=document.getElementById('hrCalcResult');
+  if(rr>0){ res.textContent=Math.round(1500/rr); }
+  else { res.textContent='—'; }
+});
+
+document.getElementById('qtcCalcQT').addEventListener('input',calcQTc);
+document.getElementById('qtcCalcRR').addEventListener('input',calcQTc);
+function calcQTc(){
+  const qt=parseFloat(document.getElementById('qtcCalcQT').value);
+  const rr=parseFloat(document.getElementById('qtcCalcRR').value);
+  const res=document.getElementById('qtcCalcResult');
+  const note=document.getElementById('qtcCalcNote');
+  if(qt>0&&rr>0){
+    const qtc=Math.round(qt/Math.sqrt(rr/1000));
+    res.textContent=qtc;
+    res.style.color=qtc>480?'var(--red)':qtc>440?'var(--yellow)':'var(--accent)';
+    note.innerHTML=`QTc = QT ÷ √(RR/1000)<br>Normal: &lt;440ms ♂ / &lt;460ms ♀<br><b style="color:${qtc>480?'var(--red)':qtc>440?'var(--yellow)':'var(--accent)'}">QTc ${qtc}ms = ${qtc>480?'⚠️ Patológico':qtc>440?'Limítrofe':'Normal'}</b>`;
+  } else { res.textContent='—'; }
+}
+
+// Make calculators draggable (header drag)
+['hrCalc','qtcCalc'].forEach(id=>{
+  const el=document.getElementById(id);
+  let drag=false, ox=0, oy=0;
+  el.querySelector('.float-calc-header').addEventListener('pointerdown',e=>{
+    if(e.target.classList.contains('float-calc-close')) return;
+    drag=true; el.setPointerCapture(e.pointerId);
+    const rect=el.getBoundingClientRect();
+    ox=e.clientX-rect.left; oy=e.clientY-rect.top;
+    e.stopPropagation();
+  });
+  document.addEventListener('pointermove',e=>{
+    if(!drag) return;
+    const pr=ecgContainer.getBoundingClientRect();
+    el.style.left=(e.clientX-pr.left-ox)+'px';
+    el.style.top=(e.clientY-pr.top-oy)+'px';
+  });
+  document.addEventListener('pointerup',()=>drag=false);
+});
+
+// ═══════════════════════════════════════
+// FULLSCREEN
+// ═══════════════════════════════════════
+const ecgPanel=document.getElementById('ecgPanel');
+const bottomPanel=document.getElementById('bottomPanel');
+const rightPanelEl=document.getElementById('rightPanel');
+
+document.getElementById('fullscreenBtn').addEventListener('click',enterFullscreen);
+document.getElementById('fullscreenExitBtn').addEventListener('click',exitFullscreen);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&state.isFullscreen) exitFullscreen(); });
+
+function enterFullscreen(){
+  state.isFullscreen=true;
+  ecgPanel.classList.add('ecg-fullscreen');
+  bottomPanel.style.visibility='hidden';
+  rightPanelEl.style.visibility='hidden';
+  document.getElementById('fullscreenExitBtn').classList.add('visible');
+  document.getElementById('fullscreenBtn').style.display='none';
+  setTimeout(resizeCanvases,50);
+}
+
+function exitFullscreen(){
+  state.isFullscreen=false;
+  ecgPanel.classList.remove('ecg-fullscreen');
+  bottomPanel.style.visibility='';
+  rightPanelEl.style.visibility='';
+  document.getElementById('fullscreenExitBtn').classList.remove('visible');
+  document.getElementById('fullscreenBtn').style.display='';
+  setTimeout(resizeCanvases,50);
+}
+
+// ═══════════════════════════════════════
+// COMPASS FULLSCREEN
+// ═══════════════════════════════════════
+const compassFSOverlay = document.getElementById('compassFSOverlay');
+const compassFSCanvas  = document.getElementById('compassFSCanvas');
+const compassFSAxis    = document.getElementById('compassFSAxis');
+
+function renderFSLeads(){
+  const container = document.getElementById('compassFSLeads');
+  if(!container) return;
+  container.innerHTML = '';
+  LEADS.forEach(l=>{
+    const sel = state.leadSelections[l.name];
+    const row = document.createElement('div');
+    row.className = 'lead-row' + (sel ? ' has-selection' : '');
+    row.innerHTML = `
+      <span class="lead-name">${l.name}</span>
+      <div class="lead-toggles">
+        <button class="lead-toggle pos${sel==='pos'?' active':''}" data-lead="${l.name}" data-val="pos">+</button>
+        <button class="lead-toggle neg${sel==='neg'?' active':''}" data-lead="${l.name}" data-val="neg">−</button>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+  container.querySelectorAll('.lead-toggle').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const name = btn.dataset.lead, val = btn.dataset.val;
+      state.leadSelections[name] = state.leadSelections[name]===val ? null : val;
+      renderLeadPanel();       // sync main panel
+      renderFSLeads();         // sync FS panel
+      drawCompass();           // redraw mini compass
+      drawCompass(compassFSCanvas); // redraw FS compass
+    });
+  });
+}
+
+function openCompassFS(){
+  // Size: fit within viewport with room for the leads sidebar
+  const size = Math.min(window.innerWidth * 0.52, window.innerHeight * 0.82, 560);
+  compassFSCanvas.width  = size;
+  compassFSCanvas.height = size;
+  compassFSCanvas.style.width  = size+'px';
+  compassFSCanvas.style.height = size+'px';
+  compassFSOverlay.classList.add('open');
+  drawCompass(compassFSCanvas);
+  compassFSAxis.textContent = state.compassAxis !== null ? `Eixo: ${state.compassAxis}°` : '';
+  renderFSLeads();
+}
+
+function closeCompassFS(){
+  compassFSOverlay.classList.remove('open');
+}
+
+document.getElementById('compassFullscreenBtn').addEventListener('click', openCompassFS);
+document.getElementById('compassFSClose').addEventListener('click', closeCompassFS);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeCompassFS(); });
+
+// Compass click on FS canvas
+compassFSCanvas.addEventListener('click', e=>{
+  const rect = compassFSCanvas.getBoundingClientRect();
+  const dx = e.clientX - rect.left - compassFSCanvas.width/2;
+  const dy = e.clientY - rect.top  - compassFSCanvas.height/2;
+  let deg = Math.round(Math.atan2(dy,dx)*180/Math.PI);
+  if(deg>180) deg-=360;
+  state.compassAxis = deg;
+  const dispText = `Eixo: ${deg}°`;
+  document.getElementById('axisDisplay').textContent = dispText;
+  document.getElementById('axisLabel').textContent   = deg+'°';
+  compassFSAxis.textContent = dispText;
+  drawCompass();
+  drawCompass(compassFSCanvas);
+});
+
+// (FS canvas stays in sync via openCompassFS + compassFSCanvas click handler)
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+renderLeadPanel();
+renderWizard();
+drawCompass();
+resizeCanvases();
+updateZoomLabel();
+</script>
+</body>
+</html>
